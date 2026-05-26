@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+data/beauty_reviews.csv
+data/beauty_meta.csv
+beauty_data.csv
+data/item_embeddings.npy
+checkpoints/
+*.pt
+
+baselines/SASRec.pytorch/python/beauty_default/
+.DS_Store

@@ -1,0 +1,4 @@
+numpy>=1.26,<2
+sentence-transformers==2.7.0
+transformers==4.36.2
+torch
