@@ -45,7 +45,10 @@ def sample_batch(user_train, usernum, itemnum, batch_size, maxlen):
     return np.array(uids), np.array(seqs), np.array(pos), np.array(neg)
 
 
-def evaluate(model, dataset, args, cold_only=False, warm_only=False):
+def evaluate(model, dataset, args, cold_only=False, warm_only=False, seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+
     train, valid, test, usernum, itemnum = copy.deepcopy(dataset)
     seen_train = train_items(train)
 
@@ -56,6 +59,10 @@ def evaluate(model, dataset, args, cold_only=False, warm_only=False):
         if usernum > 10000
         else range(1, usernum + 1)
     )
+
+    predict_kwargs = {}
+    if getattr(model, "hybrid", False):
+        predict_kwargs["seen_train"] = seen_train
 
     for u in users:
         if len(train[u]) < 1 or len(test[u]) < 1:
@@ -91,6 +98,7 @@ def evaluate(model, dataset, args, cold_only=False, warm_only=False):
             np.array([u]),
             np.array([seq]),
             np.array(candidates),
+            **predict_kwargs,
         )[0]
         rank = preds.argsort().argsort()[0].item()
         n_users += 1

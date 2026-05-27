@@ -23,6 +23,7 @@ class COAST(torch.nn.Module):
         self.item_num = item_num
         self.dev = args.device
         self.norm_first = args.norm_first
+        self.hybrid = getattr(args, "hybrid", True)
         content_dim = content_emb.shape[1]
         hidden = args.hidden_units
 
@@ -31,6 +32,8 @@ class COAST(torch.nn.Module):
             torch.tensor(content_emb, dtype=torch.float32),
         )
         self.item_proj = torch.nn.Linear(content_dim, hidden)
+        if self.hybrid:
+            self.id_emb = torch.nn.Embedding(item_num + 1, hidden, padding_idx=0)
         self.pos_emb = torch.nn.Embedding(args.maxlen + 1, hidden, padding_idx=0)
         self.emb_dropout = torch.nn.Dropout(p=args.dropout_rate)
 
@@ -48,12 +51,25 @@ class COAST(torch.nn.Module):
             self.forward_layernorms.append(torch.nn.LayerNorm(hidden, eps=1e-8))
             self.forward_layers.append(PointWiseFeedForward(hidden, args.dropout_rate))
 
-    def item_vec(self, ids):
-        ids = torch.as_tensor(ids, device=self.dev, dtype=torch.long)
-        return self.item_proj(self.content_emb[ids])
+    def item_vec(self, ids, mask_unseen_id=False, seen_train=None):
+        ids_t = torch.as_tensor(ids, device=self.dev, dtype=torch.long)
+        content = self.item_proj(self.content_emb[ids_t])
+        if not self.hybrid:
+            return content
 
-    def log2feats(self, log_seqs):
-        seqs = self.item_vec(log_seqs)
+        id_part = self.id_emb(ids_t)
+        if mask_unseen_id and seen_train is not None:
+            flat = np.asarray(ids).reshape(-1)
+            mask = torch.tensor(
+                [1.0 if int(i) in seen_train else 0.0 for i in flat],
+                device=self.dev,
+                dtype=id_part.dtype,
+            ).view(id_part.shape[:-1] + (1,))
+            id_part = id_part * mask
+        return id_part + content
+
+    def log2feats(self, log_seqs, mask_unseen_id=False, seen_train=None):
+        seqs = self.item_vec(log_seqs, mask_unseen_id=mask_unseen_id, seen_train=seen_train)
         seqs *= self.item_proj.out_features ** 0.5
 
         poss = np.tile(np.arange(1, log_seqs.shape[1] + 1), [log_seqs.shape[0], 1])
@@ -88,8 +104,13 @@ class COAST(torch.nn.Module):
         neg_logits = (log_feats * neg_embs).sum(dim=-1)
         return pos_logits, neg_logits
 
-    def predict(self, user_ids, log_seqs, item_indices):
-        log_feats = self.log2feats(log_seqs)
+    def predict(self, user_ids, log_seqs, item_indices, seen_train=None):
+        mask_unseen = self.hybrid and seen_train is not None
+        log_feats = self.log2feats(
+            log_seqs, mask_unseen_id=mask_unseen, seen_train=seen_train
+        )
         final_feat = log_feats[:, -1, :]
-        item_embs = self.item_vec(item_indices)
+        item_embs = self.item_vec(
+            item_indices, mask_unseen_id=mask_unseen, seen_train=seen_train
+        )
         return item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)

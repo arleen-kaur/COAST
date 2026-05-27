@@ -11,6 +11,11 @@ ROOT = Path(__file__).resolve().parent
 CKPT_DIR = ROOT / "checkpoints"
 
 
+def checkpoint_path(epoch, hybrid):
+    prefix = "coast_hybrid" if hybrid else "coast"
+    return CKPT_DIR / f"{prefix}_epoch{epoch}.pt"
+
+
 def train_loop(args):
     if not (ROOT / "data" / "item_embeddings.npy").is_file():
         raise FileNotFoundError("run encode_items.py first")
@@ -26,9 +31,16 @@ def train_loop(args):
         except Exception:
             pass
 
+    model.pos_emb.weight.data[0, :] = 0
+    if model.hybrid:
+        model.id_emb.weight.data[0, :] = 0
+
     opt = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98))
     bce = torch.nn.BCEWithLogitsLoss()
     num_batch = (len(user_train) - 1) // args.batch_size + 1
+
+    variant = "hybrid" if args.hybrid else "content-only"
+    print(f"training COAST ({variant}) for {args.num_epochs} epochs")
 
     CKPT_DIR.mkdir(exist_ok=True)
     for epoch in range(1, args.num_epochs + 1):
@@ -48,11 +60,11 @@ def train_loop(args):
             if step % 50 == 0:
                 print(f"epoch {epoch} step {step} loss {loss.item():.4f}")
 
-        ckpt = CKPT_DIR / f"coast_epoch{epoch}.pt"
+        ckpt = checkpoint_path(epoch, args.hybrid)
         torch.save(model.state_dict(), ckpt)
         print("saved", ckpt)
 
         model.eval()
         print("evaluating...")
-        ndcg, hr = evaluate(model, dataset, args)
+        ndcg, hr = evaluate(model, dataset, args, seed=args.seed)
         print(f"epoch {epoch} test ndcg@10 {ndcg:.4f} hr@10 {hr:.4f}")

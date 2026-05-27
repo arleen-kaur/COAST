@@ -6,7 +6,7 @@ import torch
 from data import data_partition, load_item_embeddings
 from evaluate import evaluate
 from model import COAST
-from train import train_loop
+from train import checkpoint_path, train_loop
 
 ROOT = Path(__file__).resolve().parent
 CKPT_DIR = ROOT / "checkpoints"
@@ -25,25 +25,39 @@ def parse_args():
     p.add_argument("--dropout_rate", type=float, default=0.2)
     p.add_argument("--device", default="cpu")
     p.add_argument("--norm_first", action="store_true")
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--content_only",
+        action="store_true",
+        help="COAST v1: frozen content vectors only (no ID embeddings)",
+    )
     return p.parse_args()
 
 
 def load_model(args):
     _, _, _, _, itemnum = data_partition()
     content_emb = load_item_embeddings()
+    args.hybrid = not args.content_only
     model = COAST(itemnum, content_emb, args).to(args.device)
-    ckpt = CKPT_DIR / f"coast_epoch{args.num_epochs}.pt"
+
+    ckpt = checkpoint_path(args.num_epochs, args.hybrid)
     if not ckpt.is_file():
-        ckpts = sorted(CKPT_DIR.glob("coast_epoch*.pt"))
+        pattern = "coast_hybrid_epoch*.pt" if args.hybrid else "coast_epoch*.pt"
+        ckpts = sorted(CKPT_DIR.glob(pattern))
         if not ckpts:
-            raise FileNotFoundError("no checkpoint in checkpoints/ — run train first")
+            raise FileNotFoundError(f"no checkpoint matching {pattern} — run train first")
         ckpt = ckpts[-1]
-    model.load_state_dict(torch.load(ckpt, map_location=args.device))
+        print("using checkpoint", ckpt)
+
+    state = torch.load(ckpt, map_location=args.device)
+    model.load_state_dict(state)
     return model
 
 
 def main():
     args = parse_args()
+    args.hybrid = not args.content_only
+
     if args.mode == "train":
         train_loop(args)
         return
@@ -54,8 +68,11 @@ def main():
     cold = args.mode == "cold_start"
     warm = args.mode == "warm"
     label = args.mode
-    print(f"evaluating ({label})...")
-    ndcg, hr = evaluate(model, dataset, args, cold_only=cold, warm_only=warm)
+    variant = "hybrid" if args.hybrid else "content-only"
+    print(f"evaluating ({label}, {variant}, seed={args.seed})...")
+    ndcg, hr = evaluate(
+        model, dataset, args, cold_only=cold, warm_only=warm, seed=args.seed
+    )
     print(f"{label} ndcg@10 {ndcg:.4f} hr@10 {hr:.4f}")
 
 
