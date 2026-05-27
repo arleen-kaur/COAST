@@ -25,6 +25,20 @@ Hybrid sequential recommender: SASRec behavior tower + MiniLM content embeddings
 !python eval_sasrec.py --mode cold_start --device cuda --maxlen 50 --seed 42
 ```
 
+SASRec `.pth` checkpoints are **gitignored** (`baselines/SASRec.pytorch/python/beauty_default/`). On a fresh clone, train once then eval:
+
+```python
+%cd /content/COAST
+!python prepare_sasrec.py  # ensure baselines/SASRec.pytorch/python/data/beauty.txt
+
+%cd /content/COAST/baselines/SASRec.pytorch/python
+!python main.py --dataset=beauty --train_dir=default --maxlen=50 --device cuda \\
+  --num_epochs=20 --batch_size=512 --hidden_units=50 --num_blocks=2 --num_heads=1 --lr=0.001
+
+%cd /content/COAST
+!python eval_sasrec.py --mode warm --device cuda --maxlen 50 --seed 42
+```
+
 ## Ablations
 
 ```bash
@@ -34,3 +48,5 @@ python main.py --mode warm --content_only --num_epochs 20
 ```
 
 Checkpoints: `checkpoints/coast_hybrid_epoch*.pt` (hybrid) or `checkpoints/coast_epoch*.pt` (content-only).
+
+**Cold-start eval (hybrid):** candidate items are scored **content-only** so the cold target does not compete with 100 negatives that still have full ID embeddings (that protocol always ranked the target last).

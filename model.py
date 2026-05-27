@@ -51,10 +51,16 @@ class COAST(torch.nn.Module):
             self.forward_layernorms.append(torch.nn.LayerNorm(hidden, eps=1e-8))
             self.forward_layers.append(PointWiseFeedForward(hidden, args.dropout_rate))
 
-    def item_vec(self, ids, mask_unseen_id=False, seen_train=None):
+    def item_vec(
+        self,
+        ids,
+        mask_unseen_id=False,
+        seen_train=None,
+        force_content_only=False,
+    ):
         ids_t = torch.as_tensor(ids, device=self.dev, dtype=torch.long)
         content = self.item_proj(self.content_emb[ids_t])
-        if not self.hybrid:
+        if not self.hybrid or force_content_only:
             return content
 
         id_part = self.id_emb(ids_t)
@@ -104,13 +110,25 @@ class COAST(torch.nn.Module):
         neg_logits = (log_feats * neg_embs).sum(dim=-1)
         return pos_logits, neg_logits
 
-    def predict(self, user_ids, log_seqs, item_indices, seen_train=None):
-        mask_unseen = self.hybrid and seen_train is not None
+    def predict(
+        self,
+        user_ids,
+        log_seqs,
+        item_indices,
+        seen_train=None,
+        candidates_content_only=False,
+    ):
+        # History positions are globally "warm"; cold-start fairness is only about candidates.
+        mask_unseen = self.hybrid and seen_train is not None and not candidates_content_only
         log_feats = self.log2feats(
             log_seqs, mask_unseen_id=mask_unseen, seen_train=seen_train
         )
         final_feat = log_feats[:, -1, :]
+        force_c = candidates_content_only and self.hybrid
         item_embs = self.item_vec(
-            item_indices, mask_unseen_id=mask_unseen, seen_train=seen_train
+            item_indices,
+            mask_unseen_id=False,
+            seen_train=seen_train,
+            force_content_only=force_c,
         )
         return item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)

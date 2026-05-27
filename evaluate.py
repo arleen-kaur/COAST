@@ -63,6 +63,10 @@ def evaluate(model, dataset, args, cold_only=False, warm_only=False, seed=42):
     predict_kwargs = {}
     if getattr(model, "hybrid", False):
         predict_kwargs["seen_train"] = seen_train
+        # Cold target vs 100 warm random negs would always lose if only the target
+        # strips ID embeddings; rank all candidates content-only instead.
+        if cold_only:
+            predict_kwargs["candidates_content_only"] = True
 
     for u in users:
         if len(train[u]) < 1 or len(test[u]) < 1:

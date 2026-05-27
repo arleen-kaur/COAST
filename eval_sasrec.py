@@ -25,11 +25,7 @@ def find_checkpoint(path=None, hidden_units=50, maxlen=50, num_blocks=2, num_hea
             raise FileNotFoundError(p)
         return p
 
-    folder = SASREC_DIR / "beauty_default"
-    if not folder.is_dir():
-        folder = SASREC_DIR / "default"
-
-    pattern = (
+    preferred = (
         f"SASRec.epoch=*."
         f"lr={lr}."
         f"layer={num_blocks}."
@@ -37,14 +33,36 @@ def find_checkpoint(path=None, hidden_units=50, maxlen=50, num_blocks=2, num_hea
         f"hidden={hidden_units}."
         f"maxlen={maxlen}.pth"
     )
-    matches = sorted(folder.glob(pattern))
+
+    # Check common output dirs (beauty_default is gitignored — Colab must train or --checkpoint).
+    search_dirs = []
+    for name in ("beauty_default", "default", "beauty_training"):
+        d = SASREC_DIR / name
+        if d.is_dir():
+            search_dirs.append(d)
+
+    matches = []
+    for d in search_dirs:
+        matches.extend(sorted(d.glob(preferred)))
     if not matches:
-        matches = sorted(folder.glob("SASRec.epoch=*.pth"))
+        for d in search_dirs:
+            matches.extend(sorted(d.glob("SASRec.epoch=*.pth")))
+    if not matches:
+        matches = sorted(SASREC_DIR.rglob("SASRec.epoch=*.pth"))
+
     if not matches:
         raise FileNotFoundError(
-            f"no SASRec checkpoint in {folder}. "
-            "Train from baselines/SASRec.pytorch/python first."
+            "No SASRec checkpoint (.pth) under baselines/SASRec.pytorch/python/.\n\n"
+            "Checkpoints are gitignored (see repo .gitignore).\n\n"
+            "On Colab, train SASRec once (from repo root):\n"
+            "  %cd /content/COAST/baselines/SASRec.pytorch/python\n"
+            "  !python main.py --dataset=beauty --train_dir=default --maxlen=50 "
+            "--device cuda --num_epochs=20 --batch_size=512 "
+            "--hidden_units=50 --num_blocks=2 --num_heads=1 --lr=0.001\n\n"
+            "Ensure data/beauty.txt exists (python prepare_sasrec.py from repo root).\n\n"
+            "Or pass an explicit file: --checkpoint /path/to/SASRec.epoch=....pth"
         )
+
     return matches[-1]
 
 
