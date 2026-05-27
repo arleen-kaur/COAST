@@ -10,6 +10,7 @@ from sentence_transformers import SentenceTransformer
 
 ROOT = Path(__file__).resolve().parent
 META_CSV = ROOT / "data" / "beauty_meta.csv"
+META_FALLBACK = ROOT / "beauty_data.csv"
 TRAIN_CSV = ROOT / "data" / "train.csv"
 TEST_CSV = ROOT / "data" / "test.csv"
 EMB_PATH = ROOT / "data" / "item_embeddings.npy"
@@ -50,6 +51,47 @@ def build_text(row, asin):
     return text if text else asin
 
 
+def download_meta_from_hub():
+    from datasets import DownloadMode, VerificationMode, load_dataset
+
+    META_CSV.parent.mkdir(parents=True, exist_ok=True)
+    print("downloading metadata from Hugging Face...")
+    meta = load_dataset(
+        "smartcat/Amazon_Beauty_and_Personal_Care_2023",
+        download_mode=DownloadMode.REUSE_CACHE_IF_EXISTS,
+        verification_mode=VerificationMode.NO_CHECKS,
+    )
+    df = meta["train"].to_pandas()
+    df.to_csv(META_CSV, index=False)
+    print("saved", META_CSV, df.shape)
+    return META_CSV
+
+
+def resolve_meta_path(from_hub=False):
+    if from_hub:
+        return download_meta_from_hub()
+    if META_CSV.is_file():
+        return META_CSV
+    if META_FALLBACK.is_file():
+        return META_FALLBACK
+    raise FileNotFoundError(
+        f"need {META_CSV} or {META_FALLBACK}. "
+        "Run: python download_meta.py   (best on Colab instead of uploading)"
+    )
+
+
+def load_meta_csv(path):
+    try:
+        return pd.read_csv(path, low_memory=False)
+    except pd.errors.ParserError as e:
+        size_mb = path.stat().st_size / (1024 * 1024)
+        raise pd.errors.ParserError(
+            f"{path} looks corrupt or incomplete ({size_mb:.0f} MB on disk). "
+            f"Colab uploads often truncate large CSVs. Delete it and run: "
+            f"python download_meta.py   Original error: {e}"
+        ) from e
+
+
 def load_item_ids():
     train = pd.read_csv(TRAIN_CSV)
     test = pd.read_csv(TEST_CSV)
@@ -63,6 +105,11 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--device", default="auto", help="cuda, cpu, mps, or auto")
     p.add_argument("--batch_size", type=int, default=256)
+    p.add_argument(
+        "--from_hub",
+        action="store_true",
+        help="download beauty_meta.csv from Hugging Face (use on Colab)",
+    )
     args = p.parse_args()
     device = pick_device(args.device)
 
@@ -70,7 +117,9 @@ def main():
     asins = [None] + sorted(asin2id, key=asin2id.get)
     n_items = len(asin2id)
 
-    meta = pd.read_csv(META_CSV, low_memory=False)
+    meta_path = resolve_meta_path(from_hub=args.from_hub)
+    print("meta:", meta_path)
+    meta = load_meta_csv(meta_path)
     meta = meta.drop_duplicates("parent_asin", keep="first").set_index("parent_asin")
 
     texts = []
