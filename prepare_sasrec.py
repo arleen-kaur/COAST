@@ -1,13 +1,20 @@
-from pathlib import Path
+"""Build SASRec interaction file from train/test CSV."""
+
+import argparse
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
+from datasets_config import get_dataset
 
 
 def main():
-    train = pd.read_csv(ROOT / "data" / "train.csv")
-    test = pd.read_csv(ROOT / "data" / "test.csv")
+    p = argparse.ArgumentParser()
+    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    args = p.parse_args()
+    cfg = get_dataset(args.dataset)
+
+    train = pd.read_csv(cfg.train_csv())
+    test = pd.read_csv(cfg.test_csv())
     df = pd.concat([train, test], ignore_index=True)
 
     user2id = {u: i + 1 for i, u in enumerate(df["user_id"].unique())}
@@ -17,7 +24,7 @@ def main():
     df["item_int"] = df["parent_asin"].map(item2id)
     df = df.sort_values(["user_int", "timestamp"]).reset_index(drop=True)
 
-    out = ROOT / "baselines/SASRec.pytorch/python/data/beauty.txt"
+    out = cfg.sasrec_txt()
     out.parent.mkdir(parents=True, exist_ok=True)
     df[["user_int", "item_int"]].to_csv(out, sep=" ", index=False, header=False)
 

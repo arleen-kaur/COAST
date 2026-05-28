@@ -11,14 +11,23 @@ import torch
 ROOT = Path(__file__).resolve().parent
 SASREC_DIR = ROOT / "baselines" / "SASRec.pytorch" / "python"
 
-from data import data_partition
+from data import data_partition, set_dataset
+from datasets_config import get_dataset
 from evaluate import evaluate
 
 sys.path.insert(0, str(SASREC_DIR))
 from model import SASRec  # noqa: E402
 
 
-def find_checkpoint(path=None, hidden_units=50, maxlen=50, num_blocks=2, num_heads=1, lr=0.001):
+def find_checkpoint(
+    dataset_name,
+    path=None,
+    hidden_units=50,
+    maxlen=50,
+    num_blocks=2,
+    num_heads=1,
+    lr=0.001,
+):
     if path:
         p = Path(path)
         if not p.is_file():
@@ -34,9 +43,8 @@ def find_checkpoint(path=None, hidden_units=50, maxlen=50, num_blocks=2, num_hea
         f"maxlen={maxlen}.pth"
     )
 
-    # Check common output dirs (beauty_default is gitignored — Colab must train or --checkpoint).
     search_dirs = []
-    for name in ("beauty_default", "default", "beauty_training"):
+    for name in (f"{dataset_name}_default", "default", f"{dataset_name}_training"):
         d = SASREC_DIR / name
         if d.is_dir():
             search_dirs.append(d)
@@ -52,15 +60,13 @@ def find_checkpoint(path=None, hidden_units=50, maxlen=50, num_blocks=2, num_hea
 
     if not matches:
         raise FileNotFoundError(
-            "No SASRec checkpoint (.pth) under baselines/SASRec.pytorch/python/.\n\n"
-            "Checkpoints are gitignored (see repo .gitignore).\n\n"
-            "On Colab, train SASRec once (from repo root):\n"
-            "  %cd /content/COAST/baselines/SASRec.pytorch/python\n"
-            "  !python main.py --dataset=beauty --train_dir=default --maxlen=50 "
+            f"No SASRec checkpoint for dataset={dataset_name!r}.\n\n"
+            "Train once:\n"
+            f"  %cd {SASREC_DIR}\n"
+            f"  !python main.py --dataset={dataset_name} --train_dir=default --maxlen=50 "
             "--device cuda --num_epochs=20 --batch_size=512 "
             "--hidden_units=50 --num_blocks=2 --num_heads=1 --lr=0.001\n\n"
-            "Ensure data/beauty.txt exists (python prepare_sasrec.py from repo root).\n\n"
-            "Or pass an explicit file: --checkpoint /path/to/SASRec.epoch=....pth"
+            f"Ensure data/{dataset_name}.txt exists (prepare_sasrec.py --dataset {dataset_name})."
         )
 
     return matches[-1]
@@ -68,6 +74,7 @@ def find_checkpoint(path=None, hidden_units=50, maxlen=50, num_blocks=2, num_hea
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
     p.add_argument("--mode", default="evaluate", choices=["evaluate", "warm", "cold_start"])
     p.add_argument("--checkpoint", default=None)
     p.add_argument("--device", default="cuda")
@@ -84,7 +91,11 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
 
+    cfg = get_dataset(args.dataset)
+    set_dataset(args.dataset)
+
     ckpt = find_checkpoint(
+        args.dataset,
         args.checkpoint,
         hidden_units=args.hidden_units,
         maxlen=args.maxlen,
@@ -94,7 +105,7 @@ def main():
     )
     print("checkpoint:", ckpt)
 
-    dataset = data_partition()
+    dataset = data_partition(cfg=cfg)
     _, _, _, usernum, itemnum = dataset
 
     sasrec_args = argparse.Namespace(
@@ -113,7 +124,7 @@ def main():
 
     cold = args.mode == "cold_start"
     warm = args.mode == "warm"
-    print(f"evaluating SASRec ({args.mode}, seed={args.seed})...")
+    print(f"evaluating SASRec ({cfg.name}, {args.mode}, seed={args.seed})...")
     ndcg, hr = evaluate(
         model, dataset, sasrec_args, cold_only=cold, warm_only=warm, seed=args.seed
     )

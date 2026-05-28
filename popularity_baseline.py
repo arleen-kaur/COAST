@@ -1,14 +1,19 @@
-from pathlib import Path
+import argparse
 
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
+from datasets_config import get_dataset
 
 
 def main():
-    train = pd.read_csv(ROOT / "data" / "train.csv")
-    test = pd.read_csv(ROOT / "data" / "test.csv")
+    p = argparse.ArgumentParser()
+    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    args = p.parse_args()
+    cfg = get_dataset(args.dataset)
+
+    train = pd.read_csv(cfg.train_csv())
+    test = pd.read_csv(cfg.test_csv())
 
     top10 = train["parent_asin"].value_counts().index[:10].tolist()
 
@@ -22,7 +27,7 @@ def main():
             ndcg_sum += 1.0 / np.log2(r + 1)
 
     n = len(test)
-    print("top-10 popularity baseline")
+    print(f"top-10 popularity baseline ({cfg.name})")
     print("hit rate@10", hits / n)
     print("ndcg@10", ndcg_sum / n)
     print("users", n)

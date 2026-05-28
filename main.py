@@ -1,19 +1,17 @@
 import argparse
-from pathlib import Path
 
 import torch
 
-from data import data_partition, load_item_embeddings
+from data import data_partition, load_item_embeddings, set_dataset
+from datasets_config import get_dataset
 from evaluate import evaluate
 from model import COAST
 from train import checkpoint_path, train_loop
 
-ROOT = Path(__file__).resolve().parent
-CKPT_DIR = ROOT / "checkpoints"
-
 
 def parse_args():
     p = argparse.ArgumentParser()
+    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
     p.add_argument("--mode", default="train", choices=["train", "evaluate", "cold_start", "warm"])
     p.add_argument("--batch_size", type=int, default=512)
     p.add_argument("--lr", type=float, default=0.001)
@@ -34,16 +32,16 @@ def parse_args():
     return p.parse_args()
 
 
-def load_model(args):
-    _, _, _, _, itemnum = data_partition()
-    content_emb = load_item_embeddings()
+def load_model(args, cfg):
+    content_emb = load_item_embeddings(cfg)
     args.hybrid = not args.content_only
+    _, _, _, _, itemnum = data_partition(cfg=cfg)
     model = COAST(itemnum, content_emb, args).to(args.device)
 
-    ckpt = checkpoint_path(args.num_epochs, args.hybrid)
+    ckpt = checkpoint_path(args.num_epochs, args.hybrid, cfg)
     if not ckpt.is_file():
         pattern = "coast_hybrid_epoch*.pt" if args.hybrid else "coast_epoch*.pt"
-        ckpts = sorted(CKPT_DIR.glob(pattern))
+        ckpts = sorted(cfg.checkpoint_dir().glob(pattern))
         if not ckpts:
             raise FileNotFoundError(f"no checkpoint matching {pattern} — run train first")
         ckpt = ckpts[-1]
@@ -56,20 +54,22 @@ def load_model(args):
 
 def main():
     args = parse_args()
+    cfg = get_dataset(args.dataset)
+    set_dataset(args.dataset)
     args.hybrid = not args.content_only
 
     if args.mode == "train":
         train_loop(args)
         return
 
-    model = load_model(args)
+    model = load_model(args, cfg)
     model.eval()
-    dataset = data_partition()
+    dataset = data_partition(cfg=cfg)
     cold = args.mode == "cold_start"
     warm = args.mode == "warm"
     label = args.mode
     variant = "hybrid" if args.hybrid else "content-only"
-    print(f"evaluating ({label}, {variant}, seed={args.seed})...")
+    print(f"evaluating ({cfg.name}, {label}, {variant}, seed={args.seed})...")
     ndcg, hr = evaluate(
         model, dataset, args, cold_only=cold, warm_only=warm, seed=args.seed
     )

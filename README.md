@@ -2,51 +2,73 @@
 
 Hybrid sequential recommender: SASRec behavior tower + MiniLM content embeddings.
 
-## Colab pipeline (hybrid v2)
+## Datasets
+
+| `--dataset` | Category | Metadata source |
+|-------------|----------|-----------------|
+| `beauty` (default) | Beauty & Personal Care | smartcat HF hub |
+| `electronics` | Electronics | McAuley meta JSONL (filtered to train/test items) |
+
+Legacy Beauty paths (`data/train.csv`, `data/beauty_meta.csv`, etc.) still work if you haven't re-run preprocess.
+
+---
+
+## Colab: Amazon Electronics (second dataset)
 
 ```python
-!git clone https://github.com/arleen-kaur/COAST.git
-%cd COAST
+%cd /content/COAST
+!git pull
 !pip install -q -r requirements.txt datasets huggingface_hub pandas
 
-!python download_meta.py
-!python prepare_sasrec.py
-!python encode_items.py --device cuda --batch_size 512
+# 1) Reviews sample (2M rows) + preprocess
+!python download_data.py --dataset electronics
+!python preprocess.py --dataset electronics
 
-# Hybrid COAST (default): ID embedding + content projection
-!python main.py --mode train --device cuda --num_epochs 20 --maxlen 50 --batch_size 512
+# 2) Metadata for items in split + SASRec file + embeddings
+!python download_meta.py --dataset electronics
+!python prepare_sasrec.py --dataset electronics
+!python encode_items.py --dataset electronics --device cuda --batch_size 512
 
-# Eval (same seed for reproducible tables)
-!python main.py --mode warm --device cuda --num_epochs 20 --maxlen 50 --seed 42
-!python main.py --mode cold_start --device cuda --num_epochs 20 --maxlen 50 --seed 42
+# 3) Hybrid COAST (use best epoch from log for eval, often ~2–5)
+!python main.py --dataset electronics --mode train --device cuda \
+  --num_epochs 20 --maxlen 50 --batch_size 512 --seed 42
 
-# SASRec warm/cold baseline (same protocol)
-!python eval_sasrec.py --mode warm --device cuda --maxlen 50 --seed 42
-!python eval_sasrec.py --mode cold_start --device cuda --maxlen 50 --seed 42
+!python main.py --dataset electronics --mode warm --device cuda --num_epochs 2 --maxlen 50 --seed 42
+!python main.py --dataset electronics --mode cold_start --device cuda --num_epochs 2 --maxlen 50 --seed 42
+
+# 4) Baselines
+!python content_baseline.py --dataset electronics --mode cold_start --seed 42
+!python content_baseline.py --dataset electronics --mode warm --seed 42
+
+# SASRec (train once per Colab session — checkpoints gitignored)
+%cd baselines/SASRec.pytorch/python
+!python main.py --dataset=electronics --train_dir=default --maxlen=50 --device cuda \
+  --num_epochs=20 --batch_size=512 --hidden_units=50
+%cd /content/COAST
+!python eval_sasrec.py --dataset electronics --mode warm --device cuda --maxlen 50 --seed 42
+!python eval_sasrec.py --dataset electronics --mode cold_start --device cuda --maxlen 50 --seed 42
 ```
 
-SASRec `.pth` checkpoints are **gitignored** (`baselines/SASRec.pytorch/python/beauty_default/`). On a fresh clone, train once then eval:
+---
+
+## Beauty (hybrid v2) — quick eval after pull
 
 ```python
-%cd /content/COAST
-!python prepare_sasrec.py  # ensure baselines/SASRec.pytorch/python/data/beauty.txt
-
-%cd /content/COAST/baselines/SASRec.pytorch/python
-!python main.py --dataset=beauty --train_dir=default --maxlen=50 --device cuda \\
-  --num_epochs=20 --batch_size=512 --hidden_units=50 --num_blocks=2 --num_heads=1 --lr=0.001
-
-%cd /content/COAST
+!python main.py --mode warm --device cuda --num_epochs 2 --maxlen 50 --seed 42
+!python main.py --mode cold_start --device cuda --num_epochs 2 --maxlen 50 --seed 42
+!python content_baseline.py --mode cold_start --seed 42
 !python eval_sasrec.py --mode warm --device cuda --maxlen 50 --seed 42
 ```
+
+---
 
 ## Ablations
 
 ```bash
-# COAST v1 content-only (old checkpoints: coast_epoch*.pt)
-python main.py --mode train --content_only --device cuda --num_epochs 20
-python main.py --mode warm --content_only --num_epochs 20
+python main.py --content_only --mode train --device cuda --num_epochs 20
+python content_baseline.py --mode cold_start   # untrained content cosine baseline
 ```
 
-Checkpoints: `checkpoints/coast_hybrid_epoch*.pt` (hybrid) or `checkpoints/coast_epoch*.pt` (content-only).
+**Cold-start eval (hybrid):** all 101 candidates scored with **content-only** vectors (fair vs ID-heavy negatives).
 
-**Cold-start eval (hybrid):** candidate items are scored **content-only** so the cold target does not compete with 100 negatives that still have full ID embeddings (that protocol always ranked the target last).
+Checkpoints: `checkpoints/{dataset}/coast_hybrid_epoch*.pt`

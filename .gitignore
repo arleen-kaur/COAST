@@ -3,12 +3,15 @@ __pycache__/
 .venv/
 .env
 
-data/beauty_reviews.csv
+data/*_reviews.csv
 data/beauty_meta.csv
+data/beauty/
+data/electronics/
 beauty_data.csv
 data/item_embeddings.npy
 checkpoints/
 *.pt
 
 baselines/SASRec.pytorch/python/beauty_default/
+baselines/SASRec.pytorch/python/electronics_default/
 .DS_Store

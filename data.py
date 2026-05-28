@@ -4,22 +4,42 @@ from pathlib import Path
 
 import numpy as np
 
+from datasets_config import get_dataset
+
 ROOT = Path(__file__).resolve().parent
-EMB_PATH = ROOT / "data" / "item_embeddings.npy"
-ASIN2ID_PATH = ROOT / "data" / "asin2id.json"
+_cfg = None
 
 
-def load_asin2id():
-    with open(ASIN2ID_PATH) as f:
+def set_dataset(name="beauty"):
+    global _cfg
+    _cfg = get_dataset(name)
+    return _cfg
+
+
+def _cfg_or_default():
+    global _cfg
+    if _cfg is None:
+        _cfg = get_dataset("beauty")
+    return _cfg
+
+
+def load_asin2id(cfg=None):
+    cfg = cfg or _cfg_or_default()
+    with open(cfg.asin2id_path()) as f:
         return json.load(f)
 
 
-def load_item_embeddings():
-    return np.load(EMB_PATH)
+def load_item_embeddings(cfg=None):
+    cfg = cfg or _cfg_or_default()
+    return np.load(cfg.emb_path())
 
 
-def data_partition(fname="beauty"):
-    path = ROOT / "baselines/SASRec.pytorch/python/data" / f"{fname}.txt"
+def data_partition(fname=None, cfg=None):
+    cfg = cfg or _cfg_or_default()
+    fname = fname or cfg.name
+    path = cfg.sasrec_txt() if fname == cfg.name else (
+        ROOT / "baselines/SASRec.pytorch/python/data" / f"{fname}.txt"
+    )
     usernum = 0
     itemnum = 0
     user_items = defaultdict(list)

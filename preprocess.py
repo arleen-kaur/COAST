@@ -1,30 +1,34 @@
-from pathlib import Path
+"""5-core filter + leave-last-out split."""
+
+import argparse
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
-REVIEWS_CSV = ROOT / "data" / "beauty_reviews.csv"
-TRAIN_CSV = ROOT / "data" / "train.csv"
-TEST_CSV = ROOT / "data" / "test.csv"
+from datasets_config import get_dataset
 
-SAMPLE_NROWS = 2_000_000
 COLS = ["user_id", "parent_asin", "timestamp", "rating"]
 
 
 def main():
-    if not REVIEWS_CSV.is_file():
-        raise FileNotFoundError("need data/beauty_reviews.csv from download_data.py")
+    p = argparse.ArgumentParser()
+    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    args = p.parse_args()
+    cfg = get_dataset(args.dataset)
 
-    print("loading sample...")
+    reviews = cfg.reviews_csv()
+    if not reviews.is_file():
+        raise FileNotFoundError(f"need {reviews}; run download_data.py --dataset {cfg.name}")
+
+    print(f"loading sample ({cfg.sample_nrows:,} rows max) ...")
     df = pd.read_csv(
-        REVIEWS_CSV,
-        nrows=SAMPLE_NROWS,
+        reviews,
+        nrows=cfg.sample_nrows,
         usecols=COLS,
         low_memory=False,
     )
     print(len(df), "rows")
 
-    print("filtering 5-core x3...")
+    print("filtering 5-core x3 ...")
     for _ in range(3):
         uc = df["user_id"].value_counts()
         ic = df["parent_asin"].value_counts()
@@ -32,15 +36,19 @@ def main():
         df = df[df["parent_asin"].isin(ic[ic >= 5].index)]
 
     df = df.sort_values(["user_id", "timestamp"]).reset_index(drop=True)
-    print("users", df["user_id"].nunique(), "items", df["parent_asin"].nunique(), "interactions", len(df))
+    print(
+        "users", df["user_id"].nunique(),
+        "items", df["parent_asin"].nunique(),
+        "interactions", len(df),
+    )
 
     df["rank"] = df.groupby("user_id")["timestamp"].rank(method="first", ascending=False)
     test = df[df["rank"] == 1].drop(columns="rank")
     train = df[df["rank"] > 1].drop(columns="rank")
 
-    TRAIN_CSV.parent.mkdir(parents=True, exist_ok=True)
-    train.to_csv(TRAIN_CSV, index=False)
-    test.to_csv(TEST_CSV, index=False)
+    cfg.data_dir().mkdir(parents=True, exist_ok=True)
+    train.to_csv(cfg.train_csv(), index=False)
+    test.to_csv(cfg.test_csv(), index=False)
     print("train", len(train), "test", len(test))
 
 

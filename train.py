@@ -1,28 +1,29 @@
-from pathlib import Path
-
 import numpy as np
 import torch
 
-from data import data_partition, load_item_embeddings
+from data import data_partition, load_item_embeddings, set_dataset
+from datasets_config import get_dataset
 from evaluate import evaluate, sample_batch
 from model import COAST
 
-ROOT = Path(__file__).resolve().parent
-CKPT_DIR = ROOT / "checkpoints"
 
-
-def checkpoint_path(epoch, hybrid):
+def checkpoint_path(epoch, hybrid, cfg):
     prefix = "coast_hybrid" if hybrid else "coast"
-    return CKPT_DIR / f"{prefix}_epoch{epoch}.pt"
+    d = cfg.checkpoint_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{prefix}_epoch{epoch}.pt"
 
 
 def train_loop(args):
-    if not (ROOT / "data" / "item_embeddings.npy").is_file():
-        raise FileNotFoundError("run encode_items.py first")
+    cfg = get_dataset(args.dataset)
+    set_dataset(args.dataset)
 
-    dataset = data_partition()
+    if not cfg.emb_path().is_file():
+        raise FileNotFoundError(f"run encode_items.py --dataset {cfg.name} first")
+
+    dataset = data_partition(cfg=cfg)
     user_train, _, _, usernum, itemnum = dataset
-    content_emb = load_item_embeddings()
+    content_emb = load_item_embeddings(cfg)
     model = COAST(itemnum, content_emb, args).to(args.device)
 
     for p in model.parameters():
@@ -40,9 +41,8 @@ def train_loop(args):
     num_batch = (len(user_train) - 1) // args.batch_size + 1
 
     variant = "hybrid" if args.hybrid else "content-only"
-    print(f"training COAST ({variant}) for {args.num_epochs} epochs")
+    print(f"training COAST ({variant}) on {cfg.name} for {args.num_epochs} epochs")
 
-    CKPT_DIR.mkdir(exist_ok=True)
     for epoch in range(1, args.num_epochs + 1):
         model.train()
         for step in range(num_batch):
@@ -60,7 +60,7 @@ def train_loop(args):
             if step % 50 == 0:
                 print(f"epoch {epoch} step {step} loss {loss.item():.4f}")
 
-        ckpt = checkpoint_path(epoch, args.hybrid)
+        ckpt = checkpoint_path(epoch, args.hybrid, cfg)
         torch.save(model.state_dict(), ckpt)
         print("saved", ckpt)
 

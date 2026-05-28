@@ -1,20 +1,15 @@
 import argparse
 import ast
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
 from sentence_transformers import SentenceTransformer
 
-ROOT = Path(__file__).resolve().parent
-META_CSV = ROOT / "data" / "beauty_meta.csv"
-META_FALLBACK = ROOT / "beauty_data.csv"
-TRAIN_CSV = ROOT / "data" / "train.csv"
-TEST_CSV = ROOT / "data" / "test.csv"
-EMB_PATH = ROOT / "data" / "item_embeddings.npy"
-ASIN2ID_PATH = ROOT / "data" / "asin2id.json"
+from datasets_config import get_dataset
+from download_meta import meta_from_hub, meta_from_jsonl
+
 MODEL_NAME = "all-MiniLM-L6-v2"
 
 
@@ -51,35 +46,6 @@ def build_text(row, asin):
     return text if text else asin
 
 
-def download_meta_from_hub():
-    from datasets import DownloadMode, VerificationMode, load_dataset
-
-    META_CSV.parent.mkdir(parents=True, exist_ok=True)
-    print("downloading metadata from Hugging Face...")
-    meta = load_dataset(
-        "smartcat/Amazon_Beauty_and_Personal_Care_2023",
-        download_mode=DownloadMode.REUSE_CACHE_IF_EXISTS,
-        verification_mode=VerificationMode.NO_CHECKS,
-    )
-    df = meta["train"].to_pandas()
-    df.to_csv(META_CSV, index=False)
-    print("saved", META_CSV, df.shape)
-    return META_CSV
-
-
-def resolve_meta_path(from_hub=False):
-    if from_hub:
-        return download_meta_from_hub()
-    if META_CSV.is_file():
-        return META_CSV
-    if META_FALLBACK.is_file():
-        return META_FALLBACK
-    raise FileNotFoundError(
-        f"need {META_CSV} or {META_FALLBACK}. "
-        "Run: python download_meta.py   (best on Colab instead of uploading)"
-    )
-
-
 def load_meta_csv(path):
     try:
         return pd.read_csv(path, low_memory=False)
@@ -87,37 +53,48 @@ def load_meta_csv(path):
         size_mb = path.stat().st_size / (1024 * 1024)
         raise pd.errors.ParserError(
             f"{path} looks corrupt or incomplete ({size_mb:.0f} MB on disk). "
-            f"Colab uploads often truncate large CSVs. Delete it and run: "
-            f"python download_meta.py   Original error: {e}"
+            f"Delete it and run: python download_meta.py --dataset ... "
+            f"Original error: {e}"
         ) from e
 
 
-def load_item_ids():
-    train = pd.read_csv(TRAIN_CSV)
-    test = pd.read_csv(TEST_CSV)
+def load_item_ids(cfg):
+    train = pd.read_csv(cfg.train_csv())
+    test = pd.read_csv(cfg.test_csv())
     df = pd.concat([train, test], ignore_index=True)
     asins = df["parent_asin"].unique()
     asin2id = {asin: i + 1 for i, asin in enumerate(asins)}
     return asin2id
 
 
+def resolve_meta_path(cfg, from_hub=False):
+    if from_hub or not cfg.meta_csv().is_file():
+        if cfg.meta_hub:
+            meta_from_hub(cfg, cfg.meta_csv())
+        else:
+            meta_from_jsonl(cfg, cfg.meta_csv())
+    return cfg.meta_csv()
+
+
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
     p.add_argument("--device", default="auto", help="cuda, cpu, mps, or auto")
     p.add_argument("--batch_size", type=int, default=256)
     p.add_argument(
         "--from_hub",
         action="store_true",
-        help="download beauty_meta.csv from Hugging Face (use on Colab)",
+        help="download/filter metadata from Hugging Face (use on Colab)",
     )
     args = p.parse_args()
+    cfg = get_dataset(args.dataset)
     device = pick_device(args.device)
 
-    asin2id = load_item_ids()
+    asin2id = load_item_ids(cfg)
     asins = [None] + sorted(asin2id, key=asin2id.get)
     n_items = len(asin2id)
 
-    meta_path = resolve_meta_path(from_hub=args.from_hub)
+    meta_path = resolve_meta_path(cfg, from_hub=args.from_hub)
     print("meta:", meta_path)
     meta = load_meta_csv(meta_path)
     meta = meta.drop_duplicates("parent_asin", keep="first").set_index("parent_asin")
@@ -129,7 +106,7 @@ def main():
         else:
             texts.append(asin)
 
-    print("encoding", n_items, "items on", device, "...")
+    print(f"encoding {n_items} items ({cfg.name}) on {device} ...")
     model = SentenceTransformer(MODEL_NAME, device=device)
     vectors = model.encode(
         texts,
@@ -143,13 +120,15 @@ def main():
     for asin, idx in asin2id.items():
         emb[idx] = vectors[idx - 1]
 
-    EMB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    np.save(EMB_PATH, emb)
-    with open(ASIN2ID_PATH, "w") as f:
+    emb_path = cfg.emb_path()
+    asin_path = cfg.asin2id_path()
+    emb_path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(emb_path, emb)
+    with open(asin_path, "w") as f:
         json.dump(asin2id, f)
 
-    print(EMB_PATH, emb.shape)
-    print(ASIN2ID_PATH, len(asin2id), "items")
+    print(emb_path, emb.shape)
+    print(asin_path, len(asin2id), "items")
 
 
 if __name__ == "__main__":
