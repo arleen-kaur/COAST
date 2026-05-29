@@ -1,25 +1,46 @@
-"""Amazon category configs for the COAST pipeline."""
+"""Dataset configs for the COAST pipeline (Amazon + MovieLens-1M)."""
 
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 HF_REPO = "McAuley-Lab/Amazon-Reviews-2023"
+ML1M_URL = "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
+
+DATASET_CHOICES = ("beauty", "electronics", "movielens")
 
 
 @dataclass(frozen=True)
 class DatasetConfig:
     name: str
-    meta_hub: str | None
-    meta_jsonl: str
-    reviews_jsonl: str
+    source: str = "amazon"  # amazon | movielens
+    meta_hub: str | None = None
+    meta_jsonl: str | None = None
+    reviews_jsonl: str | None = None
     sample_nrows: int = 2_000_000
 
     def data_dir(self) -> Path:
         return ROOT / "data" / self.name
 
     def reviews_csv(self) -> Path:
+        if self.source == "movielens":
+            return self.data_dir() / "ratings.csv"
         return ROOT / "data" / f"{self.name}_reviews.csv"
+
+    def movielens_raw_dir(self) -> Path:
+        return self.data_dir() / "raw" / "ml-1m"
+
+    def ratings_dat(self) -> Path:
+        return self.movielens_raw_dir() / "ratings.dat"
+
+    def movies_dat(self) -> Path:
+        return self.movielens_raw_dir() / "movies.dat"
+
+    def links_csv(self) -> Path:
+        return self.movielens_raw_dir() / "links.csv"
+
+    def tmdb_cache_path(self) -> Path:
+        return self.data_dir() / "tmdb_cache.json"
 
     def train_csv(self) -> Path:
         p = self.data_dir() / "train.csv"
@@ -84,9 +105,13 @@ class DatasetConfig:
                 return legacy
         return p
 
+    def best_checkpoint_name(self, hybrid: bool) -> str:
+        return "coast_hybrid_best.pt" if hybrid else "coast_best.pt"
+
 
 BEAUTY = DatasetConfig(
     name="beauty",
+    source="amazon",
     meta_hub="smartcat/Amazon_Beauty_and_Personal_Care_2023",
     meta_jsonl="raw/meta_categories/meta_Beauty_and_Personal_Care.jsonl",
     reviews_jsonl="raw/review_categories/Beauty_and_Personal_Care.jsonl",
@@ -94,13 +119,20 @@ BEAUTY = DatasetConfig(
 
 ELECTRONICS = DatasetConfig(
     name="electronics",
+    source="amazon",
     meta_hub=None,
     meta_jsonl="raw/meta_categories/meta_Electronics.jsonl",
     reviews_jsonl="raw/review_categories/Electronics.jsonl",
     sample_nrows=2_000_000,
 )
 
-DATASETS = {c.name: c for c in (BEAUTY, ELECTRONICS)}
+MOVIELENS = DatasetConfig(
+    name="movielens",
+    source="movielens",
+    sample_nrows=10_000_000,
+)
+
+DATASETS = {c.name: c for c in (BEAUTY, ELECTRONICS, MOVIELENS)}
 
 
 def get_dataset(name: str) -> DatasetConfig:

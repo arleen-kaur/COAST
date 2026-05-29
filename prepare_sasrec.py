@@ -4,12 +4,12 @@ import argparse
 
 import pandas as pd
 
-from datasets_config import get_dataset
+from datasets_config import DATASET_CHOICES, get_dataset
 
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     args = p.parse_args()
     cfg = get_dataset(args.dataset)
 

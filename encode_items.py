@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 from sentence_transformers import SentenceTransformer
 
-from datasets_config import get_dataset
+from datasets_config import DATASET_CHOICES, get_dataset
 from download_meta import meta_from_hub, meta_from_jsonl
 
 MODEL_NAME = "all-MiniLM-L6-v2"
@@ -78,7 +78,7 @@ def resolve_meta_path(cfg, from_hub=False):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     p.add_argument("--device", default="auto", help="cuda, cpu, mps, or auto")
     p.add_argument("--batch_size", type=int, default=256)
     p.add_argument(

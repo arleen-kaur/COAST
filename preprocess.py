@@ -4,28 +4,47 @@ import argparse
 
 import pandas as pd
 
-from datasets_config import get_dataset
+from datasets_config import DATASET_CHOICES, get_dataset
 
 COLS = ["user_id", "parent_asin", "timestamp", "rating"]
 
 
+def load_movielens_ratings(cfg):
+    path = cfg.ratings_dat()
+    if not path.is_file():
+        raise FileNotFoundError(f"need {path}; run download_movielens.py first")
+    df = pd.read_csv(
+        path,
+        sep="::",
+        engine="python",
+        names=["user_id", "parent_asin", "rating", "timestamp"],
+        encoding="latin-1",
+    )
+    df["parent_asin"] = df["parent_asin"].astype(str)
+    df["user_id"] = df["user_id"].astype(str)
+    return df
+
+
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     args = p.parse_args()
     cfg = get_dataset(args.dataset)
 
-    reviews = cfg.reviews_csv()
-    if not reviews.is_file():
-        raise FileNotFoundError(f"need {reviews}; run download_data.py --dataset {cfg.name}")
-
-    print(f"loading sample ({cfg.sample_nrows:,} rows max) ...")
-    df = pd.read_csv(
-        reviews,
-        nrows=cfg.sample_nrows,
-        usecols=COLS,
-        low_memory=False,
-    )
+    if cfg.source == "movielens":
+        print("loading MovieLens-1M ratings ...")
+        df = load_movielens_ratings(cfg)
+    else:
+        reviews = cfg.reviews_csv()
+        if not reviews.is_file():
+            raise FileNotFoundError(f"need {reviews}; run download_data.py --dataset {cfg.name}")
+        print(f"loading sample ({cfg.sample_nrows:,} rows max) ...")
+        df = pd.read_csv(
+            reviews,
+            nrows=cfg.sample_nrows,
+            usecols=COLS,
+            low_memory=False,
+        )
     print(len(df), "rows")
 
     print("filtering 5-core x3 ...")

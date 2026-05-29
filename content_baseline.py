@@ -9,7 +9,7 @@ import sys
 import numpy as np
 
 from data import data_partition, load_item_embeddings, set_dataset, train_items
-from datasets_config import get_dataset
+from datasets_config import DATASET_CHOICES, get_dataset
 
 
 def content_scores(seq, candidates, content_emb):
@@ -89,7 +89,7 @@ def evaluate_content(dataset, content_emb, args, cold_only=False, warm_only=Fals
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     p.add_argument("--mode", default="cold_start", choices=["evaluate", "warm", "cold_start"])
     p.add_argument("--maxlen", type=int, default=50)
     p.add_argument("--seed", type=int, default=42)

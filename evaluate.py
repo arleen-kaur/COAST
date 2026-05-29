@@ -45,7 +45,16 @@ def sample_batch(user_train, usernum, itemnum, batch_size, maxlen):
     return np.array(uids), np.array(seqs), np.array(pos), np.array(neg)
 
 
-def evaluate(model, dataset, args, cold_only=False, warm_only=False, seed=42):
+def evaluate(
+    model,
+    dataset,
+    args,
+    cold_only=False,
+    warm_only=False,
+    seed=42,
+    eval_split="test",
+):
+    """eval_split: 'test' (default) or 'valid' for early stopping."""
     random.seed(seed)
     np.random.seed(seed)
 
@@ -69,10 +78,15 @@ def evaluate(model, dataset, args, cold_only=False, warm_only=False, seed=42):
             predict_kwargs["candidates_content_only"] = True
 
     for u in users:
-        if len(train[u]) < 1 or len(test[u]) < 1:
-            continue
+        if eval_split == "valid":
+            if len(train[u]) < 1 or len(valid[u]) < 1:
+                continue
+            target = valid[u][0]
+        else:
+            if len(train[u]) < 1 or len(test[u]) < 1:
+                continue
+            target = test[u][0]
 
-        target = test[u][0]
         is_cold = target not in seen_train
         if cold_only and not is_cold:
             continue
@@ -81,8 +95,9 @@ def evaluate(model, dataset, args, cold_only=False, warm_only=False, seed=42):
 
         seq = np.zeros([args.maxlen], dtype=np.int32)
         idx = args.maxlen - 1
-        seq[idx] = valid[u][0]
-        idx -= 1
+        if eval_split == "test" and len(valid[u]) > 0:
+            seq[idx] = valid[u][0]
+            idx -= 1
         for item in reversed(train[u]):
             seq[idx] = item
             idx -= 1

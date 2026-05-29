@@ -2,16 +2,18 @@ import argparse
 
 import torch
 
+from checkpointing import resolve_checkpoint
+from coast_version import check_installation, print_banner
 from data import data_partition, load_item_embeddings, set_dataset
-from datasets_config import get_dataset
+from datasets_config import DATASET_CHOICES, get_dataset
 from evaluate import evaluate
 from model import COAST
-from train import checkpoint_path, train_loop
+from train import train_loop
 
 
 def parse_args():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     p.add_argument("--mode", default="train", choices=["train", "evaluate", "cold_start", "warm"])
     p.add_argument("--batch_size", type=int, default=512)
     p.add_argument("--lr", type=float, default=0.001)
@@ -29,6 +31,15 @@ def parse_args():
         action="store_true",
         help="COAST v1: frozen content vectors only (no ID embeddings)",
     )
+    p.add_argument(
+        "--checkpoint",
+        default="auto",
+        choices=["auto", "best", "last"],
+        help="eval checkpoint: auto=best if saved else --num_epochs else latest",
+    )
+    p.add_argument("--no_early_stop", action="store_true", help="train all num_epochs")
+    p.add_argument("--early_stop_patience", type=int, default=5)
+    p.add_argument("--min_epochs", type=int, default=2)
     return p.parse_args()
 
 
@@ -38,25 +49,26 @@ def load_model(args, cfg):
     _, _, _, _, itemnum = data_partition(cfg=cfg)
     model = COAST(itemnum, content_emb, args).to(args.device)
 
-    ckpt = checkpoint_path(args.num_epochs, args.hybrid, cfg)
-    if not ckpt.is_file():
-        pattern = "coast_hybrid_epoch*.pt" if args.hybrid else "coast_epoch*.pt"
-        ckpts = sorted(cfg.checkpoint_dir().glob(pattern))
-        if not ckpts:
-            raise FileNotFoundError(f"no checkpoint matching {pattern} — run train first")
-        ckpt = ckpts[-1]
-        print("using checkpoint", ckpt)
-
+    ckpt = resolve_checkpoint(
+        cfg,
+        hybrid=args.hybrid,
+        strategy=args.checkpoint,
+        num_epochs=args.num_epochs,
+    )
     state = torch.load(ckpt, map_location=args.device)
     model.load_state_dict(state)
     return model
 
 
 def main():
+    print_banner()
+    check_installation()
+
     args = parse_args()
     cfg = get_dataset(args.dataset)
     set_dataset(args.dataset)
     args.hybrid = not args.content_only
+    args.early_stop = not args.no_early_stop
 
     if args.mode == "train":
         train_loop(args)

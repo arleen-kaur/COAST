@@ -2,14 +2,19 @@
 
 Hybrid sequential recommender: SASRec behavior tower + MiniLM content embeddings.
 
+> **Colab users:** run [`scripts/verify_setup.py`](scripts/verify_setup.py) after every `git pull`. See [COLAB.md](COLAB.md).
+
 ## Datasets
 
 | `--dataset` | Category | Metadata source |
 |-------------|----------|-----------------|
 | `beauty` (default) | Beauty & Personal Care | smartcat HF hub |
 | `electronics` | Electronics | McAuley meta JSONL (filtered to train/test items) |
+| `movielens` | MovieLens-1M | TMDB plot summaries (+ `movies.dat` fallback) |
 
 Legacy Beauty paths (`data/train.csv`, `data/beauty_meta.csv`, etc.) still work if you haven't re-run preprocess.
+
+**Phase 2 (publication):** MovieLens pipeline, early stopping, CLCRec baseline — see [docs/PHASE2_PUBLICATION.md](docs/PHASE2_PUBLICATION.md).
 
 ---
 
@@ -29,12 +34,12 @@ Legacy Beauty paths (`data/train.csv`, `data/beauty_meta.csv`, etc.) still work 
 !python prepare_sasrec.py --dataset electronics
 !python encode_items.py --dataset electronics --device cuda --batch_size 512
 
-# 3) Hybrid COAST (use best epoch from log for eval, often ~2–5)
+# 3) Hybrid COAST (early stopping saves coast_hybrid_best.pt)
 !python main.py --dataset electronics --mode train --device cuda \
   --num_epochs 20 --maxlen 50 --batch_size 512 --seed 42
 
-!python main.py --dataset electronics --mode warm --device cuda --num_epochs 2 --maxlen 50 --seed 42
-!python main.py --dataset electronics --mode cold_start --device cuda --num_epochs 2 --maxlen 50 --seed 42
+!python main.py --dataset electronics --mode warm --device cuda --seed 42
+!python main.py --dataset electronics --mode cold_start --device cuda --seed 42
 
 # 4) Baselines
 !python content_baseline.py --dataset electronics --mode cold_start --seed 42
@@ -71,4 +76,4 @@ python content_baseline.py --mode cold_start   # untrained content cosine baseli
 
 **Cold-start eval (hybrid):** all 101 candidates scored with **content-only** vectors (fair vs ID-heavy negatives).
 
-Checkpoints: `checkpoints/{dataset}/coast_hybrid_epoch*.pt`
+Checkpoints: `checkpoints/{dataset}/coast_hybrid_epoch*.pt` and `coast_hybrid_best.pt` (validation early stopping).

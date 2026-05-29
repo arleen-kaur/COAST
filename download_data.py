@@ -1,4 +1,4 @@
-"""Download reviews (+ optional full metadata) for an Amazon category."""
+"""Download reviews (+ optional full metadata) for an Amazon category or MovieLens-1M."""
 
 import argparse
 import csv
@@ -9,7 +9,8 @@ import pandas as pd
 from datasets import DownloadMode, VerificationMode, load_dataset
 from huggingface_hub import hf_hub_download
 
-from datasets_config import HF_REPO, get_dataset
+from datasets_config import DATASET_CHOICES, HF_REPO, get_dataset
+from download_movielens import download_movielens
 
 REVIEW_COLS = ["user_id", "parent_asin", "timestamp", "rating"]
 
@@ -62,7 +63,7 @@ def download_meta_hub(cfg, out_path, force=False):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     p.add_argument(
         "--max_review_rows",
         type=int,
@@ -70,10 +71,15 @@ def main():
         help="cap rows when building reviews CSV (default: full file for beauty sample cap in preprocess)",
     )
     p.add_argument("--meta", action="store_true", help="also download metadata CSV")
+    p.add_argument("--force", action="store_true")
     args = p.parse_args()
 
     cfg = get_dataset(args.dataset)
-    force = os.environ.get("COAST_FORCE_DOWNLOAD", "").lower() in ("1", "true", "yes")
+    force = args.force or os.environ.get("COAST_FORCE_DOWNLOAD", "").lower() in ("1", "true", "yes")
+
+    if cfg.source == "movielens":
+        download_movielens(cfg, force=force)
+        return
 
     max_rows = args.max_review_rows
     if max_rows is None and cfg.name == "electronics":

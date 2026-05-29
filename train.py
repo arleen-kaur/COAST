@@ -14,6 +14,12 @@ def checkpoint_path(epoch, hybrid, cfg):
     return d / f"{prefix}_epoch{epoch}.pt"
 
 
+def best_checkpoint_path(hybrid, cfg):
+    d = cfg.checkpoint_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    return d / cfg.best_checkpoint_name(hybrid)
+
+
 def train_loop(args):
     cfg = get_dataset(args.dataset)
     set_dataset(args.dataset)
@@ -41,7 +47,17 @@ def train_loop(args):
     num_batch = (len(user_train) - 1) // args.batch_size + 1
 
     variant = "hybrid" if args.hybrid else "content-only"
-    print(f"training COAST ({variant}) on {cfg.name} for {args.num_epochs} epochs")
+    early_stop = getattr(args, "early_stop", True)
+    patience = getattr(args, "early_stop_patience", 5)
+    min_epochs = getattr(args, "min_epochs", 2)
+    best_val_ndcg = -1.0
+    patience_left = patience
+    best_epoch = 0
+
+    print(
+        f"training COAST ({variant}) on {cfg.name} for up to {args.num_epochs} epochs"
+        + (f" (early_stop patience={patience})" if early_stop else "")
+    )
 
     for epoch in range(1, args.num_epochs + 1):
         model.train()
@@ -65,6 +81,29 @@ def train_loop(args):
         print("saved", ckpt)
 
         model.eval()
-        print("evaluating...")
-        ndcg, hr = evaluate(model, dataset, args, seed=args.seed)
-        print(f"epoch {epoch} test ndcg@10 {ndcg:.4f} hr@10 {hr:.4f}")
+        print("evaluating (test split)...")
+        test_ndcg, test_hr = evaluate(model, dataset, args, seed=args.seed, eval_split="test")
+        print(f"epoch {epoch} test ndcg@10 {test_ndcg:.4f} hr@10 {test_hr:.4f}")
+
+        if early_stop:
+            print("\nevaluating (valid split)...")
+            val_ndcg, val_hr = evaluate(
+                model, dataset, args, seed=args.seed, eval_split="valid"
+            )
+            print(f"epoch {epoch} valid ndcg@10 {val_ndcg:.4f} hr@10 {val_hr:.4f}")
+            if val_ndcg > best_val_ndcg:
+                best_val_ndcg = val_ndcg
+                best_epoch = epoch
+                patience_left = patience
+                best_ckpt = best_checkpoint_path(args.hybrid, cfg)
+                torch.save(model.state_dict(), best_ckpt)
+                print("saved best (val)", best_ckpt)
+            elif epoch >= min_epochs:
+                patience_left -= 1
+                print(f"no val improvement ({patience_left} epochs left)")
+                if patience_left <= 0:
+                    print(f"early stop at epoch {epoch}; best epoch {best_epoch} val ndcg {best_val_ndcg:.4f}")
+                    break
+
+    if early_stop and best_epoch > 0:
+        print(f"best checkpoint: epoch {best_epoch} valid ndcg@10 {best_val_ndcg:.4f}")

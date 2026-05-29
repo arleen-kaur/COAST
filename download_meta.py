@@ -8,7 +8,7 @@ import pandas as pd
 from datasets import DownloadMode, VerificationMode, load_dataset
 from huggingface_hub import hf_hub_download
 
-from datasets_config import HF_REPO, get_dataset
+from datasets_config import DATASET_CHOICES, HF_REPO, get_dataset
 
 META_COLS = [
     "parent_asin",
@@ -66,7 +66,12 @@ def meta_from_jsonl(cfg, out_path):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
+    p.add_argument(
+        "--movies_only",
+        action="store_true",
+        help="MovieLens: use movies.dat only (no TMDB API)",
+    )
     args = p.parse_args()
     cfg = get_dataset(args.dataset)
 
@@ -74,6 +79,18 @@ def main():
         raise FileNotFoundError(f"run preprocess.py --dataset {cfg.name} first")
 
     out = cfg.meta_csv()
+    if cfg.source == "movielens":
+        from fetch_tmdb import build_meta_without_tmdb, build_movielens_meta
+        import os
+
+        if args.movies_only or not os.environ.get("TMDB_API_KEY"):
+            if not args.movies_only:
+                print("TMDB_API_KEY not set — using movies.dat only")
+            build_meta_without_tmdb(cfg, out)
+        else:
+            build_movielens_meta(cfg, out)
+        return
+
     if cfg.meta_hub:
         meta_from_hub(cfg, out)
     else:

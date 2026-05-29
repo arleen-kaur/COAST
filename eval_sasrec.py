@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent
 SASREC_DIR = ROOT / "baselines" / "SASRec.pytorch" / "python"
 
 from data import data_partition, set_dataset
-from datasets_config import get_dataset
+from datasets_config import DATASET_CHOICES, get_dataset
 from evaluate import evaluate
 
 sys.path.insert(0, str(SASREC_DIR))
@@ -74,7 +74,7 @@ def find_checkpoint(
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset", default="beauty", choices=["beauty", "electronics"])
+    p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     p.add_argument("--mode", default="evaluate", choices=["evaluate", "warm", "cold_start"])
     p.add_argument("--checkpoint", default=None)
     p.add_argument("--device", default="cuda")
