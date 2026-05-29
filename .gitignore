@@ -17,5 +17,6 @@ baselines/SASRec.pytorch/python/beauty_default/
 baselines/SASRec.pytorch/python/electronics_default/
 baselines/SASRec.pytorch/python/movielens_default/
 baselines/CLCRec/src/
+results/
 artifacts/
 *.tar.gz

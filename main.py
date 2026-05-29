@@ -11,18 +11,30 @@ from model import COAST
 from train import train_loop
 
 
+def apply_dataset_defaults(args, cfg):
+    """Fill unset training hyperparameters from dataset config."""
+    defaults = cfg.coast_train_defaults()
+    if args.num_epochs is None:
+        args.num_epochs = defaults["num_epochs"]
+    if args.dropout_rate is None:
+        args.dropout_rate = defaults["dropout_rate"]
+    if args.maxlen is None:
+        args.maxlen = defaults.get("maxlen", 50)
+    return args
+
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--dataset", default="beauty", choices=list(DATASET_CHOICES))
     p.add_argument("--mode", default="train", choices=["train", "evaluate", "cold_start", "warm"])
     p.add_argument("--batch_size", type=int, default=512)
     p.add_argument("--lr", type=float, default=0.001)
-    p.add_argument("--maxlen", type=int, default=50)
+    p.add_argument("--maxlen", type=int, default=None)
     p.add_argument("--hidden_units", type=int, default=128)
     p.add_argument("--num_blocks", type=int, default=2)
-    p.add_argument("--num_epochs", type=int, default=10)
+    p.add_argument("--num_epochs", type=int, default=None)
     p.add_argument("--num_heads", type=int, default=1)
-    p.add_argument("--dropout_rate", type=float, default=0.2)
+    p.add_argument("--dropout_rate", type=float, default=None)
     p.add_argument("--device", default="cpu")
     p.add_argument("--norm_first", action="store_true")
     p.add_argument("--seed", type=int, default=42)
@@ -67,6 +79,7 @@ def main():
     args = parse_args()
     cfg = get_dataset(args.dataset)
     set_dataset(args.dataset)
+    args = apply_dataset_defaults(args, cfg)
     args.hybrid = not args.content_only
     args.early_stop = not args.no_early_stop
 

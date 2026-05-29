@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import numpy as np
 import torch
 
@@ -18,6 +21,14 @@ def best_checkpoint_path(hybrid, cfg):
     d = cfg.checkpoint_dir()
     d.mkdir(parents=True, exist_ok=True)
     return d / cfg.best_checkpoint_name(hybrid)
+
+
+def _save_train_log(cfg, log):
+    path = cfg.train_log_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(log, f, indent=2)
+    print("saved train log", path)
 
 
 def train_loop(args):
@@ -53,6 +64,7 @@ def train_loop(args):
     best_val_ndcg = -1.0
     patience_left = patience
     best_epoch = 0
+    history = []
 
     print(
         f"training COAST ({variant}) on {cfg.name} for up to {args.num_epochs} epochs"
@@ -85,12 +97,24 @@ def train_loop(args):
         test_ndcg, test_hr = evaluate(model, dataset, args, seed=args.seed, eval_split="test")
         print(f"epoch {epoch} test ndcg@10 {test_ndcg:.4f} hr@10 {test_hr:.4f}")
 
+        val_ndcg, val_hr = test_ndcg, test_hr
         if early_stop:
             print("\nevaluating (valid split)...")
             val_ndcg, val_hr = evaluate(
                 model, dataset, args, seed=args.seed, eval_split="valid"
             )
             print(f"epoch {epoch} valid ndcg@10 {val_ndcg:.4f} hr@10 {val_hr:.4f}")
+
+        entry = {
+            "epoch": epoch,
+            "test_ndcg": round(test_ndcg, 4),
+            "test_hr": round(test_hr, 4),
+            "valid_ndcg": round(val_ndcg, 4),
+            "valid_hr": round(val_hr, 4),
+        }
+        history.append(entry)
+
+        if early_stop:
             if val_ndcg > best_val_ndcg:
                 best_val_ndcg = val_ndcg
                 best_epoch = epoch
@@ -102,8 +126,25 @@ def train_loop(args):
                 patience_left -= 1
                 print(f"no val improvement ({patience_left} epochs left)")
                 if patience_left <= 0:
-                    print(f"early stop at epoch {epoch}; best epoch {best_epoch} val ndcg {best_val_ndcg:.4f}")
+                    print(
+                        f"early stop at epoch {epoch}; "
+                        f"best epoch {best_epoch} val ndcg {best_val_ndcg:.4f}"
+                    )
                     break
+
+        _save_train_log(
+            cfg,
+            {
+                "dataset": cfg.name,
+                "variant": variant,
+                "best_epoch": best_epoch,
+                "best_valid_ndcg": round(best_val_ndcg, 4),
+                "early_stop": early_stop,
+                "dropout_rate": args.dropout_rate,
+                "num_epochs_max": args.num_epochs,
+                "history": history,
+            },
+        )
 
     if early_stop and best_epoch > 0:
         print(f"best checkpoint: epoch {best_epoch} valid ndcg@10 {best_val_ndcg:.4f}")

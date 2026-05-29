@@ -1,101 +1,103 @@
-# Google Colab — always run this first
+# Google Colab — Phase 2 full pipeline
 
-Colab does **not** auto-update when you push to GitHub. Run this **every new session** before experiments:
-
-```python
-%cd /content
-!rm -rf COAST  # optional: fresh clone
-!git clone https://github.com/arleen-kaur/COAST.git
-%cd /content/COAST
-
-!pip install -q -r requirements.txt
-!python scripts/verify_setup.py --pull
-```
-
-If `verify_setup.py` fails, your notebook is on stale code — do **not** run eval until pull succeeds.
-
-## Data prep (required once per session — embeddings are not in git)
-
-```python
-!python scripts/prepare_dataset.py --dataset beauty --device cuda --from_hub
-# electronics:
-# !python scripts/prepare_dataset.py --dataset electronics --device cuda
-```
-
-## Train then eval
-
-```python
-!python main.py --dataset beauty --mode train --device cuda --num_epochs 20 --seed 42
-```
-
-## Eval (no epoch number needed)
-
-After training, evaluation **auto-loads** the best validation checkpoint:
-
-```python
-!python main.py --dataset beauty --mode warm --device cuda --seed 42
-!python main.py --dataset beauty --mode cold_start --device cuda --seed 42
-```
-
-Optional: `--checkpoint last --num_epochs 20` to force a specific epoch file.
-
-## Version
-
-Check installed version:
-
-```python
-!cat VERSION
-!python scripts/verify_setup.py
-```
-
-Current release: see `VERSION` file (e.g. `0.2.0`).
+Run **Cell 1** every new session. Then **Cell 2** (one dataset) or **Cell 3** (all three).
 
 ---
 
-## Save data once (skip re-download on every session)
-
-Preprocessed files are **not in git**. After running `prepare_dataset.py` once, pack and upload to **Google Drive**:
-
-### On Colab (after prep finishes)
+## Cell 1 — Clone, install, verify
 
 ```python
-%cd /content/COAST
-!python scripts/pack_data.py --dataset beauty --include_checkpoints
-# Or all datasets: !python scripts/pack_data.py --all --include_checkpoints
-
-from google.colab import drive
-drive.mount('/content/drive')
-!cp artifacts/coast_data_bundle.tar.gz /content/drive/MyDrive/
-```
-
-Typical sizes: **Beauty ~80–150 MB**, **Electronics ~200–400 MB** (embeddings dominate).  
-Do **not** upload raw `*_reviews.csv` (multi-GB) — only the packed bundle.
-
-### Next Colab sessions
-
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-
+%cd /content
+!git clone https://github.com/arleen-kaur/COAST.git 2>/dev/null || true
 %cd /content/COAST
 !git pull origin main
 !pip install -q -r requirements.txt
-
-!python scripts/restore_data.py --archive /content/drive/MyDrive/coast_data_bundle.tar.gz
-!python scripts/verify_setup.py --check-data
-
-# Train / eval — no download or encode needed
-!python main.py --dataset beauty --mode warm --device cuda --seed 42
+!python scripts/verify_setup.py
 ```
 
-### What gets saved
+---
 
-| File | Purpose |
-|------|---------|
-| `train.csv`, `test.csv` | Splits |
-| `meta.csv` | Item text |
-| `item_embeddings.npy` | MiniLM vectors |
-| `asin2id.json` | Item ID map |
-| `data/{dataset}.txt` | SASRec format |
-| `checkpoints/` (optional) | COAST `.pt` files |
-| `{dataset}_default/*.pth` (optional) | SASRec weights |
+## Cell 2 — One dataset (prep + train + eval + baselines)
+
+**Beauty** (skip download if `data/train.csv` exists):
+
+```python
+%cd /content/COAST
+!python scripts/run_dataset.py --dataset beauty --phase all --device cuda --skip_download
+```
+
+**Electronics:**
+
+```python
+!python scripts/run_dataset.py --dataset electronics --phase all --device cuda
+```
+
+**MovieLens** (set TMDB key or use `--movies_only`):
+
+```python
+import os
+os.environ["TMDB_API_KEY"] = "YOUR_KEY"  # https://www.themoviedb.org/settings/api
+
+!python scripts/run_dataset.py --dataset movielens --phase all --device cuda
+# Without TMDB: add --movies_only
+```
+
+Results saved to `results/{dataset}.json`. Early stopping picks best checkpoint automatically.
+
+---
+
+## Cell 3 — All Phase 2 datasets (overnight run)
+
+```python
+import os
+os.environ["TMDB_API_KEY"] = "YOUR_KEY"  # optional for movielens
+
+%cd /content/COAST
+!python scripts/run_phase2.py --device cuda --phase all --skip_download
+# Beauty assumes train.csv exists; electronics + movielens download fresh
+```
+
+---
+
+## Cell 4 — CLCRec cited comparison
+
+```python
+!python eval_clcrec.py --dataset beauty
+!python eval_clcrec.py --dataset movielens
+```
+
+---
+
+## Cell 5 — Pack to Drive (once)
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+
+!python scripts/pack_data.py --all --include_checkpoints
+!cp artifacts/coast_data_bundle.tar.gz /content/drive/MyDrive/
+```
+
+---
+
+## Next session (fast)
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+%cd /content/COAST
+!git pull && !pip install -q -r requirements.txt
+!python scripts/restore_data.py --archive /content/drive/MyDrive/coast_data_bundle.tar.gz
+!python scripts/run_dataset.py --dataset beauty --phase eval --device cuda
+```
+
+---
+
+## What Phase 2 implements
+
+| Step | Status |
+|------|--------|
+| MovieLens-1M + TMDB | `run_dataset.py --dataset movielens` |
+| Early stopping | Default in training; `train_log.json` + `coast_hybrid_best.pt` |
+| CLCRec baseline | `eval_clcrec.py` + cited Table 2 numbers |
+| One-command suite | `scripts/run_dataset.py` / `scripts/run_phase2.py` |

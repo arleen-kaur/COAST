@@ -108,6 +108,18 @@ class DatasetConfig:
     def best_checkpoint_name(self, hybrid: bool) -> str:
         return "coast_hybrid_best.pt" if hybrid else "coast_best.pt"
 
+    def train_log_path(self) -> Path:
+        return self.checkpoint_dir() / "train_log.json"
+
+    def coast_train_defaults(self) -> dict:
+        """Recommended hyperparameters (early stopping enabled in train.py)."""
+        if self.name == "movielens":
+            return {"num_epochs": 50, "dropout_rate": 0.3, "maxlen": 50}
+        return {"num_epochs": 20, "dropout_rate": 0.2, "maxlen": 50}
+
+    def results_path(self) -> Path:
+        return ROOT / "results" / f"{self.name}.json"
+
 
 BEAUTY = DatasetConfig(
     name="beauty",
