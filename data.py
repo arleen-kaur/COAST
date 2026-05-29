@@ -23,15 +23,48 @@ def _cfg_or_default():
     return _cfg
 
 
+def _missing_data_message(cfg, path: Path, step: str) -> str:
+    return (
+        f"Missing {path}\n\n"
+        f"Run data prep for dataset={cfg.name!r} (once per Colab session):\n"
+        f"  python scripts/prepare_dataset.py --dataset {cfg.name}\n\n"
+        f"Or step by step:\n"
+        f"  {step}"
+    )
+
+
 def load_asin2id(cfg=None):
     cfg = cfg or _cfg_or_default()
-    with open(cfg.asin2id_path()) as f:
+    path = cfg.asin2id_path()
+    if not path.is_file():
+        raise FileNotFoundError(
+            _missing_data_message(
+                cfg,
+                path,
+                f"python encode_items.py --dataset {cfg.name} --device cuda --batch_size 512",
+            )
+        )
+    with open(path) as f:
         return json.load(f)
 
 
 def load_item_embeddings(cfg=None):
     cfg = cfg or _cfg_or_default()
-    return np.load(cfg.emb_path())
+    path = cfg.emb_path()
+    if not path.is_file():
+        raise FileNotFoundError(
+            _missing_data_message(
+                cfg,
+                path,
+                (
+                    f"python download_meta.py --dataset {cfg.name}\n"
+                    f"  python prepare_sasrec.py --dataset {cfg.name}\n"
+                    f"  python encode_items.py --dataset {cfg.name} --device cuda "
+                    f"--batch_size 512 --from_hub"
+                ),
+            )
+        )
+    return np.load(path)
 
 
 def data_partition(fname=None, cfg=None):
@@ -40,6 +73,14 @@ def data_partition(fname=None, cfg=None):
     path = cfg.sasrec_txt() if fname == cfg.name else (
         ROOT / "baselines/SASRec.pytorch/python/data" / f"{fname}.txt"
     )
+    if not path.is_file():
+        raise FileNotFoundError(
+            _missing_data_message(
+                cfg,
+                path,
+                f"python prepare_sasrec.py --dataset {cfg.name}",
+            )
+        )
     usernum = 0
     itemnum = 0
     user_items = defaultdict(list)

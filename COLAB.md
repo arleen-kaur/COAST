@@ -14,6 +14,20 @@ Colab does **not** auto-update when you push to GitHub. Run this **every new ses
 
 If `verify_setup.py` fails, your notebook is on stale code — do **not** run eval until pull succeeds.
 
+## Data prep (required once per session — embeddings are not in git)
+
+```python
+!python scripts/prepare_dataset.py --dataset beauty --device cuda --from_hub
+# electronics:
+# !python scripts/prepare_dataset.py --dataset electronics --device cuda
+```
+
+## Train then eval
+
+```python
+!python main.py --dataset beauty --mode train --device cuda --num_epochs 20 --seed 42
+```
+
 ## Eval (no epoch number needed)
 
 After training, evaluation **auto-loads** the best validation checkpoint:

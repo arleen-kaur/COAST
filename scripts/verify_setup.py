@@ -30,6 +30,11 @@ def main():
         action="store_true",
         help="run git pull origin main before checks (Colab)",
     )
+    p.add_argument(
+        "--check-data",
+        action="store_true",
+        help="warn if beauty embeddings missing (expected on fresh Colab)",
+    )
     args = p.parse_args()
 
     if args.pull:
@@ -64,9 +69,20 @@ def main():
         print("\nSetup incomplete. Run: git pull origin main")
         sys.exit(1)
 
+    if args.check_data:
+        from datasets_config import get_dataset
+
+        for name in ("beauty",):
+            cfg = get_dataset(name)
+            emb = cfg.emb_path()
+            if not emb.is_file():
+                print(f"\n[WARN] Missing {emb}")
+                print(f"  Run: python scripts/prepare_dataset.py --dataset {name} --device cuda --from_hub")
+
     print(f"\nCOAST v{COAST_VERSION} is ready.")
-    print("Eval example (auto-loads best checkpoint if trained with early stopping):")
-    print("  python main.py --dataset beauty --mode warm --device cuda --seed 42")
+    print("1) Prep data:  python scripts/prepare_dataset.py --dataset beauty --device cuda --from_hub")
+    print("2) Train:      python main.py --dataset beauty --mode train --device cuda --num_epochs 20")
+    print("3) Eval:       python main.py --dataset beauty --mode warm --device cuda --seed 42")
 
 
 if __name__ == "__main__":
