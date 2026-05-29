@@ -14,12 +14,13 @@ Hybrid sequential recommender: SASRec behavior tower + MiniLM content embeddings
 
 Legacy Beauty paths (`data/train.csv`, `data/beauty_meta.csv`, etc.) still work if you haven't re-run preprocess.
 
-**Phase 2 (publication):** MovieLens, early stopping, CLCRec — see [COLAB.md](COLAB.md) and run:
+**Overnight publication run (all datasets + report):**
 
 ```bash
-python scripts/run_dataset.py --dataset beauty --phase all --device cuda
-python eval_clcrec.py --dataset beauty
+python scripts/run_publication_overnight.py --device cuda --movies_only
 ```
+
+See [COLAB.md](COLAB.md).
 
 ---
 

@@ -182,7 +182,17 @@ def save_results(cfg, results):
     with open(out, "w") as f:
         json.dump(payload, f, indent=2)
     print(f"\nSaved results → {out}")
-    run([sys.executable, "eval_clcrec.py", "--dataset", cfg.name])
+    try:
+        from scripts.clcrec_results import get_clcrec_metrics
+
+        with open(out) as f:
+            data = json.load(f)
+        data.setdefault("methods", {})["CLCRec"] = get_clcrec_metrics(cfg.name)
+        with open(out, "w") as f:
+            json.dump(data, f, indent=2)
+        print("merged CLCRec into", out)
+    except Exception as e:
+        print("CLCRec merge skipped:", e)
 
 
 def main():
