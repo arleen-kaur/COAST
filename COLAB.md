@@ -1,5 +1,22 @@
 # Google Colab — overnight publication run
 
+## Keep Colab alive overnight (important on free tier)
+
+Free Colab can **disconnect after ~90 minutes** even while code runs. Use **Colab Pro** if you have it, or run this in a **separate cell** before the overnight script:
+
+```javascript
+%%javascript
+function ClickConnect(){
+    console.log("Keeping alive...");
+    document.querySelector("colab-toolbar-button#connect").click()
+}
+setInterval(ClickConnect, 60000)
+```
+
+Also: **Runtime → Change runtime type → GPU** (T4 is fine).
+
+---
+
 ## One cell to run everything (leave overnight)
 
 ```python
