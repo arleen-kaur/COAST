@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-"""One-shot data prep before train/eval (embeddings are not in git)."""
 
 import argparse
 import subprocess
@@ -9,13 +7,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from datasets_config import DATASET_CHOICES, get_dataset
-
+from coast.config import DATASET_CHOICES, get_dataset
 
 def run(cmd):
     print("\n>>>", " ".join(cmd), flush=True)
     subprocess.run(cmd, cwd=ROOT, check=True)
-
 
 def main():
     p = argparse.ArgumentParser(description="Download metadata, build SASRec file, encode items")
@@ -31,26 +27,27 @@ def main():
 
     if cfg.source == "amazon":
         if not args.skip_download and not cfg.train_csv().is_file():
-            run([py, "download_data.py", "--dataset", cfg.name])
-            run([py, "preprocess.py", "--dataset", cfg.name])
+            run([py, "-m", "coast.preprocess.download_data", "--dataset", cfg.name])
+            run([py, "-m", "coast.preprocess.filter_splits", "--dataset", cfg.name])
         elif not cfg.train_csv().is_file():
-            print(f"Need {cfg.train_csv()} — run download_data.py + preprocess.py")
+            print(f"Need {cfg.train_csv()} — run download_data + filter_splits")
             sys.exit(1)
-        run([py, "download_meta.py", "--dataset", cfg.name])
+        run([py, "-m", "coast.preprocess.download_meta", "--dataset", cfg.name])
     elif cfg.source == "movielens":
         if not args.skip_download:
-            run([py, "download_data.py", "--dataset", cfg.name])
-            run([py, "preprocess.py", "--dataset", cfg.name])
-        meta_cmd = [py, "download_meta.py", "--dataset", cfg.name]
+            run([py, "-m", "coast.preprocess.download_data", "--dataset", cfg.name])
+            run([py, "-m", "coast.preprocess.filter_splits", "--dataset", cfg.name])
+        meta_cmd = [py, "-m", "coast.preprocess.download_meta", "--dataset", cfg.name]
         if args.movies_only:
             meta_cmd.append("--movies_only")
         run(meta_cmd)
 
-    run([py, "prepare_sasrec.py", "--dataset", cfg.name])
+    run([py, "-m", "coast.preprocess.prepare_sasrec", "--dataset", cfg.name])
 
     enc = [
         py,
-        "encode_items.py",
+        "-m",
+        "coast.preprocess.encode_items",
         "--dataset",
         cfg.name,
         "--device",
@@ -68,7 +65,6 @@ def main():
     else:
         print(f"\nExpected embeddings at {emb} but file missing.")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

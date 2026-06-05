@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-"""Restore a COAST data bundle created by pack_data.py."""
 
 import argparse
 import sys
@@ -7,7 +5,6 @@ import tarfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-
 
 def main():
     p = argparse.ArgumentParser(description="Restore packed COAST data on Colab")
@@ -27,7 +24,6 @@ def main():
             return
         tar.extractall(ROOT)
 
-    # Quick sanity
     checks = [
         ROOT / "data" / "beauty" / "item_embeddings.npy",
         ROOT / "data" / "item_embeddings.npy",
@@ -36,7 +32,6 @@ def main():
     found = [p for p in checks if p.is_file()]
     print(f"Restored. Found embeddings: {[str(p.relative_to(ROOT)) for p in found] or 'none yet'}")
     print("Skip prepare_dataset.py if splits+embeddings are present. Run train/eval directly.")
-
 
 if __name__ == "__main__":
     main()

@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""Create a portable archive of preprocessed COAST data (splits, meta, embeddings).
-
-Usage:
-  python scripts/pack_data.py --dataset beauty
-  python scripts/pack_data.py --dataset beauty electronics --include_checkpoints
-  python scripts/pack_data.py --all
-
-Upload the .tar.gz to Google Drive; on Colab run scripts/restore_data.py.
-"""
 
 import argparse
 import sys
@@ -17,11 +7,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from datasets_config import DATASET_CHOICES, get_dataset
-
+from coast.config import DATASET_CHOICES, get_dataset
 
 def collect_paths(cfg, include_checkpoints=False):
-    """Return (archive_name, path_on_disk) pairs relative to ROOT."""
     entries = []
 
     def add(path: Path, arcname: str | None = None):
@@ -32,25 +20,20 @@ def collect_paths(cfg, include_checkpoints=False):
                 if f.is_file():
                     entries.append((f, str(f.relative_to(ROOT))))
 
-    # Splits
     for p in (cfg.train_csv(), cfg.test_csv()):
         add(p)
 
-    # Meta + embeddings
     add(cfg.meta_csv())
     add(cfg.emb_path())
     add(cfg.asin2id_path())
 
-    # SASRec interaction file
     add(cfg.sasrec_txt())
 
-    # MovieLens extras
     if cfg.source == "movielens":
         add(cfg.tmdb_cache_path())
         for p in (cfg.movies_dat(), cfg.links_csv()):
             add(p)
 
-    # Legacy beauty paths (include if present and not already added)
     if cfg.name == "beauty":
         for p in (
             ROOT / "data" / "train.csv",
@@ -66,7 +49,6 @@ def collect_paths(cfg, include_checkpoints=False):
         sasrec_ckpt = ROOT / "baselines" / "SASRec.pytorch" / "python" / f"{cfg.name}_default"
         add(sasrec_ckpt)
 
-    # Dedupe by arcname
     seen = set()
     unique = []
     for path, arc in entries:
@@ -74,7 +56,6 @@ def collect_paths(cfg, include_checkpoints=False):
             seen.add(arc)
             unique.append((path, arc))
     return unique
-
 
 def main():
     p = argparse.ArgumentParser(description="Pack preprocessed COAST data for Colab upload")
@@ -112,7 +93,6 @@ def main():
     print(f"\nWrote {out} ({size_mb:.1f} MB, {len(all_entries)} files)")
     print("Upload to Google Drive, then on Colab:")
     print(f"  !python scripts/restore_data.py --archive /content/drive/MyDrive/{out.name}")
-
 
 if __name__ == "__main__":
     main()
