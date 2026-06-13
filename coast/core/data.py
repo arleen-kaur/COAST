@@ -1,11 +1,8 @@
-import json
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 
 from coast.config import get_dataset
-from coast.config.datasets import REPO_ROOT
 
 _cfg = None
 
@@ -20,56 +17,23 @@ def _cfg_or_default():
         _cfg = get_dataset("beauty")
     return _cfg
 
-def _missing_data_message(cfg, path: Path, step: str) -> str:
-    return (
-        f"Missing {path}\n\n"
-        f"Run: python scripts/prepare_dataset.py --dataset {cfg.name}\n\n"
-        f"Or: {step}"
+def _missing(cfg, path):
+    return FileNotFoundError(
+        f"missing {path}; run: python scripts/prepare_dataset.py --dataset {cfg.name}"
     )
-
-def load_asin2id(cfg=None):
-    cfg = cfg or _cfg_or_default()
-    path = cfg.asin2id_path()
-    if not path.is_file():
-        raise FileNotFoundError(
-            _missing_data_message(
-                cfg,
-                path,
-                f"python -m coast.preprocess.encode_items --dataset {cfg.name} --device cuda",
-            )
-        )
-    with open(path) as f:
-        return json.load(f)
 
 def load_item_embeddings(cfg=None):
     cfg = cfg or _cfg_or_default()
     path = cfg.emb_path()
     if not path.is_file():
-        raise FileNotFoundError(
-            _missing_data_message(
-                cfg,
-                path,
-                f"python scripts/prepare_dataset.py --dataset {cfg.name} --device cuda",
-            )
-        )
+        raise _missing(cfg, path)
     return np.load(path)
 
-def data_partition(fname=None, cfg=None):
+def data_partition(cfg=None):
     cfg = cfg or _cfg_or_default()
-    fname = fname or cfg.name
-    path = (
-        cfg.sasrec_txt()
-        if fname == cfg.name
-        else REPO_ROOT / "baselines/SASRec.pytorch/python/data" / f"{fname}.txt"
-    )
+    path = cfg.sasrec_txt()
     if not path.is_file():
-        raise FileNotFoundError(
-            _missing_data_message(
-                cfg,
-                path,
-                f"python -m coast.preprocess.prepare_sasrec --dataset {cfg.name}",
-            )
-        )
+        raise _missing(cfg, path)
     usernum = 0
     itemnum = 0
     user_items = defaultdict(list)

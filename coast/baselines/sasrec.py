@@ -14,57 +14,20 @@ from coast.config.datasets import REPO_ROOT
 
 SASREC_DIR = REPO_ROOT / "baselines" / "SASRec.pytorch" / "python"
 
-def find_checkpoint(
-    dataset_name,
-    path=None,
-    hidden_units=50,
-    maxlen=50,
-    num_blocks=2,
-    num_heads=1,
-    lr=0.001,
-):
+def find_checkpoint(dataset_name, path=None):
     if path:
         p = Path(path)
         if not p.is_file():
             raise FileNotFoundError(p)
         return p
 
-    preferred = (
-        f"SASRec.epoch=*."
-        f"lr={lr}."
-        f"layer={num_blocks}."
-        f"head={num_heads}."
-        f"hidden={hidden_units}."
-        f"maxlen={maxlen}.pth"
-    )
-
-    search_dirs = []
-    for name in (f"{dataset_name}_default", "default", f"{dataset_name}_training"):
-        d = SASREC_DIR / name
-        if d.is_dir():
-            search_dirs.append(d)
-
-    matches = []
-    for d in search_dirs:
-        matches.extend(sorted(d.glob(preferred)))
-    if not matches:
-        for d in search_dirs:
-            matches.extend(sorted(d.glob("SASRec.epoch=*.pth")))
-    if not matches:
-        matches = sorted(SASREC_DIR.rglob("SASRec.epoch=*.pth"))
-
-    if not matches:
+    ckpts = sorted((SASREC_DIR / f"{dataset_name}_default").glob("SASRec.epoch=*.pth"))
+    if not ckpts:
         raise FileNotFoundError(
-            f"No SASRec checkpoint for dataset={dataset_name!r}.\n\n"
-            "Train once (from baselines/SASRec.pytorch/python):\n"
-            f"  python main.py --dataset={dataset_name} --train_dir=default --maxlen=50 "
-            "--device cuda --num_epochs=20 --batch_size=512 "
-            "--hidden_units=50 --num_blocks=2 --num_heads=1 --lr=0.001\n\n"
-            f"Ensure data/{dataset_name}.txt exists "
-            f"(python -m coast.preprocess.prepare_sasrec --dataset {dataset_name})."
+            f"no SASRec checkpoint for {dataset_name!r}; train it first from "
+            "baselines/SASRec.pytorch/python (see run_dataset.py)"
         )
-
-    return matches[-1]
+    return ckpts[-1]
 
 def main():
     p = argparse.ArgumentParser()
@@ -77,7 +40,6 @@ def main():
     p.add_argument("--num_blocks", type=int, default=2)
     p.add_argument("--num_heads", type=int, default=1)
     p.add_argument("--dropout_rate", type=float, default=0.2)
-    p.add_argument("--lr", type=float, default=0.001)
     p.add_argument("--norm_first", action="store_true")
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
@@ -88,15 +50,7 @@ def main():
     cfg = get_dataset(args.dataset)
     set_dataset(args.dataset)
 
-    ckpt = find_checkpoint(
-        args.dataset,
-        args.checkpoint,
-        hidden_units=args.hidden_units,
-        maxlen=args.maxlen,
-        num_blocks=args.num_blocks,
-        num_heads=args.num_heads,
-        lr=args.lr,
-    )
+    ckpt = find_checkpoint(args.dataset, args.checkpoint)
     print("checkpoint:", ckpt)
 
     dataset = data_partition(cfg=cfg)

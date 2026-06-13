@@ -59,7 +59,7 @@ coast/
   train/       training loop with validation-based early stopping
   cli/         train/eval entry point (python -m coast.cli.main)
   baselines/   content-only baseline and SASRec wrapper
-scripts/       end-to-end runners, reporting, and data pack/restore helpers
+scripts/       end-to-end runners and reporting
 baselines/     vendored SASRec.pytorch baseline
 ```
 

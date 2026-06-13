@@ -55,14 +55,6 @@ def _train_cmd(args, cfg, content_only=False):
         str(args.dropout_rate if args.dropout_rate is not None else defaults["dropout_rate"]),
         "--early_stop_patience",
         str(args.early_stop_patience or defaults["early_stop_patience"]),
-        "--min_epochs",
-        str(args.min_epochs if args.min_epochs is not None else defaults["min_epochs"]),
-        "--early_stop_min_delta",
-        str(
-            args.early_stop_min_delta
-            if args.early_stop_min_delta is not None
-            else defaults["early_stop_min_delta"]
-        ),
         "--seed",
         str(args.seed),
     ]
@@ -188,8 +180,6 @@ def main():
     p.add_argument("--maxlen", type=int, default=None)
     p.add_argument("--dropout_rate", type=float, default=None)
     p.add_argument("--early_stop_patience", type=int, default=None)
-    p.add_argument("--min_epochs", type=int, default=None)
-    p.add_argument("--early_stop_min_delta", type=float, default=None)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--ablations", action="store_true", help="also train/eval COAST content-only")
     p.add_argument("--skip_download", action="store_true")

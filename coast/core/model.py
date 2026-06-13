@@ -24,7 +24,6 @@ class COAST(torch.nn.Module):
         super().__init__()
         self.item_num = item_num
         self.dev = args.device
-        self.norm_first = args.norm_first
         self.hybrid = getattr(args, "hybrid", True)
         content_dim = content_emb.shape[1]
         hidden = args.hidden_units
@@ -91,17 +90,10 @@ class COAST(torch.nn.Module):
 
         for i in range(len(self.attention_layers)):
             seqs = torch.transpose(seqs, 0, 1)
-            if self.norm_first:
-                x = self.attention_layernorms[i](seqs)
-                mha, _ = self.attention_layers[i](x, x, x, attn_mask=mask)
-                seqs = seqs + mha
-                seqs = torch.transpose(seqs, 0, 1)
-                seqs = seqs + self.forward_layers[i](self.forward_layernorms[i](seqs))
-            else:
-                mha, _ = self.attention_layers[i](seqs, seqs, seqs, attn_mask=mask)
-                seqs = self.attention_layernorms[i](seqs + mha)
-                seqs = torch.transpose(seqs, 0, 1)
-                seqs = self.forward_layernorms[i](seqs + self.forward_layers[i](seqs))
+            mha, _ = self.attention_layers[i](seqs, seqs, seqs, attn_mask=mask)
+            seqs = self.attention_layernorms[i](seqs + mha)
+            seqs = torch.transpose(seqs, 0, 1)
+            seqs = self.forward_layernorms[i](seqs + self.forward_layers[i](seqs))
 
         return self.last_layernorm(seqs)
 
