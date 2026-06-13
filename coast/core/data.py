@@ -1,9 +1,11 @@
+"""Data loading: read the SASRec-style interaction file and build per-user splits."""
 from collections import defaultdict
 
 import numpy as np
 
 from coast.config import get_dataset
 
+# module-level dataset config so the eval/baseline scripts can set it once
 _cfg = None
 
 def set_dataset(name="beauty"):
@@ -46,6 +48,7 @@ def data_partition(cfg=None):
             itemnum = max(i, itemnum)
             user_items[u].append(i)
 
+    # leave-one-out: last item -> test, second-to-last -> validation, rest -> train
     user_train, user_valid, user_test = {}, {}, {}
     for user, items in user_items.items():
         if len(items) < 4:
@@ -60,6 +63,7 @@ def data_partition(cfg=None):
     return user_train, user_valid, user_test, usernum, itemnum
 
 def train_items(user_train):
+    # set of items that appear in training; used to split warm vs cold-start items
     seen = set()
     for items in user_train.values():
         seen.update(items)

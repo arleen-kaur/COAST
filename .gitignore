@@ -3,12 +3,8 @@ __pycache__/
 .venv/
 .env
 
-data/*_reviews.csv
-data/beauty_meta.csv
-data/beauty/
-data/electronics/
+data/
 beauty_data.csv
-data/item_embeddings.npy
 checkpoints/
 *.pt
 

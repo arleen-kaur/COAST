@@ -1,3 +1,4 @@
+"""Encode each item's title + features + description into a MiniLM embedding vector."""
 import argparse
 import ast
 import json

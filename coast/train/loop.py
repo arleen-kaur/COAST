@@ -1,3 +1,4 @@
+"""Training loop: BPR-style binary loss with validation-based early stopping."""
 import numpy as np
 import torch
 
@@ -79,6 +80,7 @@ def train_loop(args):
         val_ndcg, val_hr = evaluate(model, dataset, args, seed=args.seed, eval_split="valid")
         print(f"epoch {epoch} valid ndcg@10 {val_ndcg:.4f} hr@10 {val_hr:.4f}")
 
+        # keep the checkpoint with the best validation NDCG; stop once it stalls
         if early_stop:
             if val_ndcg > best_val_ndcg:
                 best_val_ndcg = val_ndcg

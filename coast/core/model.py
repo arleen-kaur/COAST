@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 
-# SASRec-style transformer blocks, but item vectors = ID embedding + projected MiniLM text
+# COAST = SASRec self-attention backbone, but each item vector is the sum of a learned ID
+# embedding (collaborative signal) and a projected MiniLM text embedding (content signal).
+# For a cold item the ID embedding is zero, so the content part carries the whole vector.
 
 
 class PointWiseFeedForward(torch.nn.Module):
@@ -59,6 +61,7 @@ class COAST(torch.nn.Module):
         seen_train=None,
         force_content_only=False,
     ):
+        # text embedding projected into the model's hidden size
         ids_t = torch.as_tensor(ids, device=self.dev, dtype=torch.long)
         content = self.item_proj(self.content_emb[ids_t])
         if not self.hybrid or force_content_only:
@@ -77,6 +80,7 @@ class COAST(torch.nn.Module):
         return id_part + content
 
     def log2feats(self, log_seqs, mask_unseen_id=False, seen_train=None):
+        # encode a user's click history into a sequence of states
         seqs = self.item_vec(log_seqs, mask_unseen_id=mask_unseen_id, seen_train=seen_train)
         seqs *= self.item_proj.out_features ** 0.5
 
@@ -85,6 +89,7 @@ class COAST(torch.nn.Module):
         seqs += self.pos_emb(torch.as_tensor(poss, device=self.dev, dtype=torch.long))
         seqs = self.emb_dropout(seqs)
 
+        # causal mask so each position only attends to earlier items
         tl = seqs.shape[1]
         mask = ~torch.tril(torch.ones((tl, tl), dtype=torch.bool, device=self.dev))
 

@@ -1,3 +1,4 @@
+"""Ranking evaluation (HR@10 / NDCG@10), shared by COAST and the SASRec baseline."""
 import copy
 import random
 import sys
@@ -6,7 +7,7 @@ import numpy as np
 
 from coast.core.data import train_items
 
-# mostly copied from SASRec eval: 1 positive + 100 random negatives per user
+# mostly copied from SASRec eval: rank the true next item against 100 random negatives
 
 
 def random_neq(lo, hi, seen):
@@ -86,6 +87,7 @@ def evaluate(
                 continue
             target = test[u][0]
 
+        # cold-start eval only scores items never seen in training, and vice versa
         is_cold = target not in seen_train
         if cold_only and not is_cold:
             continue

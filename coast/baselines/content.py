@@ -1,4 +1,5 @@
-
+"""Content-only baseline: rank candidates by cosine similarity to the user's history,
+using just the MiniLM text embeddings (no learned ID embeddings, no training)."""
 import argparse
 import copy
 import random
@@ -10,6 +11,7 @@ from coast.config import DATASET_CHOICES, get_dataset
 from coast.core.data import data_partition, load_item_embeddings, set_dataset, train_items
 
 def content_scores(seq, candidates, content_emb):
+    # user profile = mean of the text embeddings of items they interacted with
     idx = seq[seq != 0]
     if len(idx) == 0:
         anchor = content_emb[candidates[0]]
