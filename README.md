@@ -1,4 +1,4 @@
-# COAST: Content-Augmented Sequential Recommendation for Cold-Start
+# COAST: Content-Aware Sequential Transformers for Cold-Start Recommendation
 
 CS228 course project. COAST tackles the **item cold-start** problem in sequential
 recommendation: standard models like SASRec learn item embeddings from clicks, so a brand
