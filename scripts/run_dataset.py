@@ -11,7 +11,6 @@ sys.path.insert(0, str(ROOT))
 
 from coast.config import DATASET_CHOICES, get_dataset
 from coast.config.datasets import REPO_ROOT
-from scripts.results_aggregate import aggregate_seed_runs
 
 SASREC_DIR = REPO_ROOT / "baselines" / "SASRec.pytorch" / "python"
 METRIC_RE = re.compile(r"ndcg@10\s+([\d.]+)\s+hr@10\s+([\d.]+)", re.I)
@@ -24,9 +23,7 @@ def run(cmd, cwd=None):
 
 def capture_metrics(cmd, cwd=None):
     print("\n>>>", " ".join(str(c) for c in cmd), flush=True)
-    out = subprocess.run(
-        cmd, cwd=cwd or ROOT, check=True, capture_output=True, text=True
-    )
+    out = subprocess.run(cmd, cwd=cwd or ROOT, check=True, capture_output=True, text=True)
     print(out.stdout, end="")
     if out.stderr:
         print(out.stderr, end="", file=sys.stderr)
@@ -36,7 +33,7 @@ def capture_metrics(cmd, cwd=None):
     return float(m.group(1)), float(m.group(2))
 
 
-def _train_cmd(args, cfg, seed, content_only=False):
+def _train_cmd(args, cfg, content_only=False):
     defaults = cfg.coast_train_defaults()
     cmd = [
         sys.executable,
@@ -67,7 +64,7 @@ def _train_cmd(args, cfg, seed, content_only=False):
             else defaults["early_stop_min_delta"]
         ),
         "--seed",
-        str(seed),
+        str(args.seed),
     ]
     if content_only:
         cmd.append("--content_only")
@@ -84,17 +81,14 @@ def phase_prep(args, cfg):
         args.device,
         "--batch_size",
         str(args.batch_size),
+        "--from_hub",
     ]
-    if cfg.source == "amazon":
-        cmd.append("--from_hub")
-    if args.movies_only and cfg.source == "movielens":
-        cmd.append("--movies_only")
     if args.skip_download:
         cmd.append("--skip_download")
     run(cmd)
 
 
-def phase_eval_coast(args, cfg, seed, results, content_only=False):
+def phase_eval_coast(args, cfg, results, content_only=False):
     key = "COAST_content_only" if content_only else "COAST"
     results.setdefault(key, {})
     base = [
@@ -108,7 +102,7 @@ def phase_eval_coast(args, cfg, seed, results, content_only=False):
         "--checkpoint",
         "best",
         "--seed",
-        str(seed),
+        str(args.seed),
     ]
     if content_only:
         base.append("--content_only")
@@ -121,29 +115,22 @@ def phase_eval_coast(args, cfg, seed, results, content_only=False):
         results[key][key_hr] = hr
 
 
-def phase_baselines(args, cfg, seed, results):
+def phase_baselines(args, cfg, results):
     py = sys.executable
+    results.setdefault("content_baseline", {})
     for mode, key_ndcg, key_hr in (
         ("warm", "warm_ndcg", "warm_hr"),
         ("cold_start", "cold_ndcg", "cold_hr"),
     ):
         ndcg, hr = capture_metrics(
-            [
-                py,
-                "-m",
-                "coast.baselines.content",
-                "--dataset",
-                cfg.name,
-                "--mode",
-                mode,
-                "--seed",
-                str(seed),
-            ]
+            [py, "-m", "coast.baselines.content", "--dataset", cfg.name, "--mode", mode,
+             "--seed", str(args.seed)]
         )
         results["content_baseline"][key_ndcg] = ndcg
         results["content_baseline"][key_hr] = hr
 
     if not args.skip_sasrec:
+        results.setdefault("SASRec", {})
         sasrec_ckpt_dir = SASREC_DIR / f"{cfg.name}_default"
         if not any(sasrec_ckpt_dir.glob("SASRec.epoch=*.pth")):
             run(
@@ -164,54 +151,27 @@ def phase_baselines(args, cfg, seed, results):
                 cwd=SASREC_DIR,
             )
         for mode in ("warm", "cold_start"):
-            key_ndcg = f"{'warm' if mode == 'warm' else 'cold'}_ndcg"
-            key_hr = f"{'warm' if mode == 'warm' else 'cold'}_hr"
+            key_ndcg = "warm_ndcg" if mode == "warm" else "cold_ndcg"
+            key_hr = "warm_hr" if mode == "warm" else "cold_hr"
             ndcg, hr = capture_metrics(
-                [
-                    py,
-                    "-m",
-                    "coast.baselines.sasrec",
-                    "--dataset",
-                    cfg.name,
-                    "--mode",
-                    mode,
-                    "--device",
-                    args.device,
-                    "--maxlen",
-                    "50",
-                    "--seed",
-                    str(seed),
-                ]
+                [py, "-m", "coast.baselines.sasrec", "--dataset", cfg.name, "--mode", mode,
+                 "--device", args.device, "--maxlen", "50", "--seed", str(args.seed)]
             )
             results["SASRec"][key_ndcg] = ndcg
             results["SASRec"][key_hr] = hr
 
 
-def save_results(cfg, seeds, per_seed_results, train_defaults):
-    aggregated = aggregate_seed_runs(per_seed_results)
+def save_results(cfg, results):
     out = cfg.results_path()
     out.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "dataset": cfg.name,
-        "seeds": seeds,
-        "train_defaults": train_defaults,
-        "methods": aggregated,
-        "per_seed": per_seed_results,
+        "train_defaults": cfg.coast_train_defaults(),
+        "methods": results,
     }
     with open(out, "w") as f:
         json.dump(payload, f, indent=2)
     print(f"\nSaved results -> {out}")
-
-    try:
-        from scripts.clcrec_results import get_clcrec_metrics
-
-        with open(out) as f:
-            data = json.load(f)
-        data.setdefault("methods", {})["CLCRec"] = get_clcrec_metrics(cfg.name)
-        with open(out, "w") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print("CLCRec merge skipped:", e)
 
 
 def main():
@@ -230,70 +190,34 @@ def main():
     p.add_argument("--early_stop_patience", type=int, default=None)
     p.add_argument("--min_epochs", type=int, default=None)
     p.add_argument("--early_stop_min_delta", type=float, default=None)
-    p.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44])
-    p.add_argument("--seed", type=int, default=None, help="single seed override")
-    p.add_argument("--ablations", action="store_true", help="train/eval COAST content-only")
-    p.add_argument("--movies_only", action="store_true")
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--ablations", action="store_true", help="also train/eval COAST content-only")
     p.add_argument("--skip_download", action="store_true")
     p.add_argument("--skip_sasrec", action="store_true")
-    p.add_argument("--prepare_clcrec", action="store_true")
     args = p.parse_args()
 
-    seeds = [args.seed] if args.seed is not None else args.seeds
     cfg = get_dataset(args.dataset)
-    per_seed_results = []
 
     if args.phase in ("prep", "all"):
         phase_prep(args, cfg)
-        if args.prepare_clcrec:
-            run(
-                [
-                    sys.executable,
-                    "scripts/prepare_clcrec.py",
-                    "--dataset",
-                    cfg.name,
-                ]
-            )
 
-    run_eval = args.phase in ("eval", "baselines", "all")
     run_train = args.phase in ("train", "all")
+    run_eval = args.phase in ("eval", "baselines", "all")
 
-    if run_eval and not run_train:
-        for seed in seeds:
-            seed_results = {
-                "COAST": {},
-                "content_baseline": {},
-                "SASRec": {},
-            }
-            if args.phase in ("eval", "all"):
-                phase_eval_coast(args, cfg, seed, seed_results, content_only=False)
-                if args.ablations:
-                    phase_eval_coast(args, cfg, seed, seed_results, content_only=True)
-            if args.phase in ("baselines", "all"):
-                phase_baselines(args, cfg, seed, seed_results)
-            per_seed_results.append(seed_results)
-        save_results(cfg, seeds, per_seed_results, cfg.coast_train_defaults())
-    else:
-        for seed in seeds:
-            if run_train:
-                run(_train_cmd(args, cfg, seed, content_only=False))
-                if args.ablations:
-                    run(_train_cmd(args, cfg, seed, content_only=True))
-            if run_eval:
-                seed_results = {
-                    "COAST": {},
-                    "content_baseline": {},
-                    "SASRec": {},
-                }
-                if args.phase in ("eval", "all"):
-                    phase_eval_coast(args, cfg, seed, seed_results, content_only=False)
-                    if args.ablations:
-                        phase_eval_coast(args, cfg, seed, seed_results, content_only=True)
-                if args.phase in ("baselines", "all"):
-                    phase_baselines(args, cfg, seed, seed_results)
-                per_seed_results.append(seed_results)
-        if run_eval:
-            save_results(cfg, seeds, per_seed_results, cfg.coast_train_defaults())
+    if run_train:
+        run(_train_cmd(args, cfg, content_only=False))
+        if args.ablations:
+            run(_train_cmd(args, cfg, content_only=True))
+
+    if run_eval:
+        results = {}
+        if args.phase in ("eval", "all"):
+            phase_eval_coast(args, cfg, results, content_only=False)
+            if args.ablations:
+                phase_eval_coast(args, cfg, results, content_only=True)
+        if args.phase in ("baselines", "all"):
+            phase_baselines(args, cfg, results)
+        save_results(cfg, results)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,6 @@ import argparse
 import pandas as pd
 
 from coast.config import DATASET_CHOICES, get_dataset
-from coast.preprocess.download_movielens import load_movielens_ratings
 
 COLS = ["user_id", "parent_asin", "timestamp", "rating"]
 
@@ -13,22 +12,18 @@ def main():
     args = p.parse_args()
     cfg = get_dataset(args.dataset)
 
-    if cfg.source == "movielens":
-        print("loading MovieLens-1M ratings ...")
-        df = load_movielens_ratings(cfg)
-    else:
-        reviews = cfg.reviews_csv()
-        if not reviews.is_file():
-            raise FileNotFoundError(
-                f"need {reviews}; run: python -m coast.preprocess.download_data --dataset {cfg.name}"
-            )
-        print(f"loading sample ({cfg.sample_nrows:,} rows max) ...")
-        df = pd.read_csv(
-            reviews,
-            nrows=cfg.sample_nrows,
-            usecols=COLS,
-            low_memory=False,
+    reviews = cfg.reviews_csv()
+    if not reviews.is_file():
+        raise FileNotFoundError(
+            f"need {reviews}; run: python -m coast.preprocess.download_data --dataset {cfg.name}"
         )
+    print(f"loading sample ({cfg.sample_nrows:,} rows max) ...")
+    df = pd.read_csv(
+        reviews,
+        nrows=cfg.sample_nrows,
+        usecols=COLS,
+        low_memory=False,
+    )
     print(len(df), "rows")
 
     print("filtering 5-core x3 ...")

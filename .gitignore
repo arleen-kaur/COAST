@@ -7,7 +7,6 @@ data/*_reviews.csv
 data/beauty_meta.csv
 data/beauty/
 data/electronics/
-data/movielens/
 beauty_data.csv
 data/item_embeddings.npy
 checkpoints/
@@ -15,9 +14,6 @@ checkpoints/
 
 baselines/SASRec.pytorch/python/beauty_default/
 baselines/SASRec.pytorch/python/electronics_default/
-baselines/SASRec.pytorch/python/movielens_default/
-baselines/CLCRec/src/
-baselines/CLCRec/src/Data/
 results/
 artifacts/
 *.tar.gz

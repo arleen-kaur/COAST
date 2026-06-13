@@ -4,9 +4,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 HF_REPO = "McAuley-Lab/Amazon-Reviews-2023"
-ML1M_URL = "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
 
-DATASET_CHOICES = ("beauty", "electronics", "movielens")
+DATASET_CHOICES = ("beauty", "electronics")
 
 
 @dataclass
@@ -22,24 +21,7 @@ class DatasetConfig:
         return REPO_ROOT / "data" / self.name
 
     def reviews_csv(self):
-        if self.source == "movielens":
-            return self.data_dir() / "ratings.csv"
         return REPO_ROOT / "data" / f"{self.name}_reviews.csv"
-
-    def movielens_raw_dir(self):
-        return self.data_dir() / "raw" / "ml-1m"
-
-    def ratings_dat(self):
-        return self.movielens_raw_dir() / "ratings.dat"
-
-    def movies_dat(self):
-        return self.movielens_raw_dir() / "movies.dat"
-
-    def links_csv(self):
-        return self.movielens_raw_dir() / "links.csv"
-
-    def tmdb_cache_path(self):
-        return self.data_dir() / "tmdb_cache.json"
 
     def train_csv(self):
         p = self.data_dir() / "train.csv"
@@ -110,9 +92,6 @@ class DatasetConfig:
     def train_log_path(self):
         return self.checkpoint_dir() / "train_log.json"
 
-    def clcrec_data_name(self) -> str:
-        return f"coast_{self.name}"
-
     def coast_train_defaults(self) -> dict:
         base = {
             "maxlen": 50,
@@ -132,14 +111,6 @@ class DatasetConfig:
                 **base,
                 "num_epochs": 30,
                 "dropout_rate": 0.25,
-            }
-        if self.name == "movielens":
-            return {
-                **base,
-                "num_epochs": 50,
-                "dropout_rate": 0.3,
-                "early_stop_patience": 5,
-                "min_epochs": 5,
             }
         return {**base, "num_epochs": 20, "dropout_rate": 0.2}
 
@@ -162,12 +133,7 @@ ELECTRONICS = DatasetConfig(
     reviews_jsonl="raw/review_categories/Electronics.jsonl",
 )
 
-MOVIELENS = DatasetConfig(
-    name="movielens",
-    source="movielens",
-)
-
-DATASETS = {c.name: c for c in (BEAUTY, ELECTRONICS, MOVIELENS)}
+DATASETS = {c.name: c for c in (BEAUTY, ELECTRONICS)}
 
 
 def get_dataset(name: str) -> DatasetConfig:

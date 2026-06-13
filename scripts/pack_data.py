@@ -29,11 +29,6 @@ def collect_paths(cfg, include_checkpoints=False):
 
     add(cfg.sasrec_txt())
 
-    if cfg.source == "movielens":
-        add(cfg.tmdb_cache_path())
-        for p in (cfg.movies_dat(), cfg.links_csv()):
-            add(p)
-
     if cfg.name == "beauty":
         for p in (
             ROOT / "data" / "train.csv",
@@ -60,7 +55,7 @@ def collect_paths(cfg, include_checkpoints=False):
 def main():
     p = argparse.ArgumentParser(description="Pack preprocessed COAST data for Colab upload")
     p.add_argument("--dataset", action="append", choices=list(DATASET_CHOICES))
-    p.add_argument("--all", action="store_true", help="pack beauty + electronics + movielens")
+    p.add_argument("--all", action="store_true", help="pack beauty + electronics")
     p.add_argument("--include_checkpoints", action="store_true")
     p.add_argument("--output", default=None, help="output .tar.gz path")
     args = p.parse_args()
