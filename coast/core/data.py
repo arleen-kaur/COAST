@@ -1,11 +1,9 @@
-"""Data loading: read the SASRec-style interaction file and build per-user splits."""
 from collections import defaultdict
 
 import numpy as np
 
 from coast.config import get_dataset
 
-# module-level dataset config so the eval/baseline scripts can set it once
 _cfg = None
 
 def set_dataset(name="beauty"):

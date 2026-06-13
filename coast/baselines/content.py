@@ -1,5 +1,3 @@
-"""Content-only baseline: rank candidates by cosine similarity to the user's history,
-using just the MiniLM text embeddings (no learned ID embeddings, no training)."""
 import argparse
 import copy
 import random

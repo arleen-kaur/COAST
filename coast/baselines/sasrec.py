@@ -1,5 +1,3 @@
-"""SASRec baseline: load a checkpoint trained with the vendored SASRec.pytorch repo and
-evaluate it with our shared warm/cold-start ranking metrics."""
 import argparse
 import random
 import sys

@@ -1,4 +1,3 @@
-"""Training loop: BPR-style binary loss with validation-based early stopping."""
 import numpy as np
 import torch
 

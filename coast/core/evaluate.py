@@ -1,4 +1,3 @@
-"""Ranking evaluation (HR@10 / NDCG@10), shared by COAST and the SASRec baseline."""
 import copy
 import random
 import sys
