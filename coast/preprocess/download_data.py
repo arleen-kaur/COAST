@@ -8,7 +8,6 @@ from huggingface_hub import hf_hub_download
 
 from coast.config import DATASET_CHOICES, get_dataset
 from coast.config.datasets import HF_REPO
-from coast.preprocess.download_movielens import download_movielens
 
 REVIEW_COLS = ["user_id", "parent_asin", "timestamp", "rating"]
 
@@ -71,10 +70,6 @@ def main():
 
     cfg = get_dataset(args.dataset)
     force = args.force or os.environ.get("COAST_FORCE_DOWNLOAD", "").lower() in ("1", "true", "yes")
-
-    if cfg.source == "movielens":
-        download_movielens(cfg, force=force)
-        return
 
     max_rows = args.max_review_rows
     if max_rows is None and cfg.name == "electronics":

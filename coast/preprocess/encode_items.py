@@ -42,17 +42,6 @@ def build_text(row, asin):
     text = ". ".join(x for x in [title, feats, desc] if x).strip()
     return text if text else asin
 
-def load_meta_csv(path):
-    try:
-        return pd.read_csv(path, low_memory=False)
-    except pd.errors.ParserError as e:
-        size_mb = path.stat().st_size / (1024 * 1024)
-        raise pd.errors.ParserError(
-            f"{path} looks corrupt or incomplete ({size_mb:.0f} MB on disk). "
-            f"Delete it and run: python -m coast.preprocess.download_meta --dataset ... "
-            f"Original error: {e}"
-        ) from e
-
 def load_item_ids(cfg):
     train = pd.read_csv(cfg.train_csv())
     test = pd.read_csv(cfg.test_csv())
@@ -89,7 +78,7 @@ def main():
 
     meta_path = resolve_meta_path(cfg, from_hub=args.from_hub)
     print("meta:", meta_path)
-    meta = load_meta_csv(meta_path)
+    meta = pd.read_csv(meta_path, low_memory=False)
     meta = meta.drop_duplicates("parent_asin", keep="first").set_index("parent_asin")
 
     texts = []

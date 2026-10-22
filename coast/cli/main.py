@@ -31,14 +31,11 @@ def parse_args():
     p.add_argument("--num_heads", type=int, default=1)
     p.add_argument("--dropout_rate", type=float, default=None)
     p.add_argument("--device", default="cpu")
-    p.add_argument("--norm_first", action="store_true")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--content_only", action="store_true")
     p.add_argument("--checkpoint", default="auto", choices=["auto", "best", "last"])
     p.add_argument("--no_early_stop", action="store_true")
     p.add_argument("--early_stop_patience", type=int, default=None)
-    p.add_argument("--min_epochs", type=int, default=None)
-    p.add_argument("--early_stop_min_delta", type=float, default=None)
     return p.parse_args()
 
 

@@ -1,9 +1,0 @@
-# Optional — CLCRec (MM21) uses old torch-geometric APIs.
-# Install in a separate venv if COAST training breaks.
-torch
-torch-geometric
-torch-scatter
-torch-sparse
-numpy
-tqdm
-tensorboard

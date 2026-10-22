@@ -3,21 +3,13 @@ __pycache__/
 .venv/
 .env
 
-data/*_reviews.csv
-data/beauty_meta.csv
-data/beauty/
-data/electronics/
-data/movielens/
+data/
 beauty_data.csv
-data/item_embeddings.npy
 checkpoints/
 *.pt
 
 baselines/SASRec.pytorch/python/beauty_default/
 baselines/SASRec.pytorch/python/electronics_default/
-baselines/SASRec.pytorch/python/movielens_default/
-baselines/CLCRec/src/
-baselines/CLCRec/src/Data/
 results/
 artifacts/
 *.tar.gz

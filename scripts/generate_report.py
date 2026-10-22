@@ -10,24 +10,19 @@ RESULTS = ROOT / "results"
 def fmt_metric(m, key):
     if key not in m:
         return "—"
-    val = m[key]
-    std = m.get(f"{key}_std")
-    if std is not None and std > 0:
-        return f"{val:.4f}±{std:.4f}"
-    return f"{val:.4f}"
+    return f"{m[key]:.4f}"
 
 
 def main():
     lines = [f"COAST results — {datetime.now().strftime('%Y-%m-%d %H:%M')}", ""]
 
-    for ds in ["beauty", "electronics", "movielens"]:
-        coast_path = RESULTS / f"{ds}.json"
-        if not coast_path.is_file():
+    for ds in ["beauty", "electronics"]:
+        path = RESULTS / f"{ds}.json"
+        if not path.is_file():
             continue
-        with open(coast_path) as f:
+        with open(path) as f:
             data = json.load(f)
-        seeds = data.get("seeds", [])
-        lines.append(f"## {ds} (seeds={seeds})")
+        lines.append(f"## {ds}")
         lines.append("")
         lines.append("method\twarm_ndcg\twarm_hr\tcold_ndcg\tcold_hr")
         for name, m in data.get("methods", {}).items():
